@@ -1,12 +1,12 @@
 #!/bin/bash
-# --------------------------------------------------------------
-#                           docker
-# --------------------------------------------------------------
+# ==============================================================
+#                           DOCKER
+# ==============================================================
 alias dc="docker-compose"
 
-# ===================================
-#         CORE UTILITIES
-# ===================================
+# -----------------------------------
+#         core utilities
+# -----------------------------------
 
 function validate_params() {
     # Validate function parameters
@@ -108,9 +108,9 @@ function docker_compose_operation() {
 
 
 
-# ===================================
-#         UTILITY FUNCTIONS
-# ===================================
+# -----------------------------------
+#         utility functions
+# -----------------------------------
 
 function slugify_docker() {
     # Convert docker image names to filesystem-safe slugs
@@ -141,9 +141,9 @@ function validate_docker_image_for_extraction() {
     return 0
 }
 
-# ===================================
-#         DOCKER OPERATIONS
-# ===================================
+# -----------------------------------
+#         docker operations
+# -----------------------------------
 
 function enter() {
     # Enter a running docker container with bash or sh fallback
@@ -172,9 +172,9 @@ function dcl() {
     docker-compose logs --no-log-prefix -f --tail 100 "$@"
 }
 
-# ===================================
-#     DOCKER-COMPOSE OPERATIONS
-# ===================================
+# -----------------------------------
+#     docker-compose operations
+# -----------------------------------
 
 function hotloadl() {
     $DC kill $@ && \
@@ -289,9 +289,9 @@ function send_docker_image_via_pipe() {
 }
 
 
-# ===================================
-#         IMAGE OPERATIONS
-# ===================================
+# -----------------------------------
+#         image operations
+# -----------------------------------
 function get_dockerfile_content() {
     # Extract Dockerfile content from a docker image
     # Args: $1 - image name
@@ -322,9 +322,9 @@ function get_dockerfile_content_legacy() {
         | sed '$d'
 }
 
-# ===================================
-#       ADVANCED OPERATIONS
-# ===================================
+# -----------------------------------
+#       advanced operations
+# -----------------------------------
 
 function dc_replace_tag() {
     # Tag Docker images with new tags based on existing image names in docker-compose

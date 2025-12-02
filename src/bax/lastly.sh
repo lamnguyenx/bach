@@ -1,8 +1,8 @@
 #!/bin/bash
-# --------------------------------------------------------------
-#                         aliases
-# --------------------------------------------------------------
-# Common shell aliases for productivity
+# ==============================================================
+#                         ALIASES
+# ==============================================================
+# Common shell aliases, functions, and misc for productivity
 
 # Enable color support for ls and add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -32,9 +32,9 @@ if [ "$TERM_PROGRAM" = "vscode" ]; then
     export EDITOR="code --wait"
 fi
 
-# ===================================
-#            JUST ONE
-# ===================================
+# -----------------------------------
+#            just one
+# -----------------------------------
 function just_one_tensorboard() {
 
     local logdir="$1"
@@ -60,9 +60,9 @@ function just_one_grip() {
     tail -f ~/grip.log
 }
 
-# ===================================
-#            PROJECTS
-# ===================================
+# -----------------------------------
+#            projects
+# -----------------------------------
 
 if [[ -f .project.sh ]]; then
     source .project.sh
@@ -70,4 +70,30 @@ fi
 
 if [[ -f .project-untracked.sh ]]; then
     source .project-untracked.sh
+fi
+
+# -----------------------------------
+#            misc
+# -----------------------------------
+alias ap="set_pp_proxy && amp"
+alias cl="set_pp_proxy && claude --verbose"
+export EDITOR="vim"
+
+if command -v fzf > /dev/null 2>&1; then
+    [ -n "$BASH_VERSION" ] && source <(fzf --bash)
+    [ -n "$ZSH_VERSION" ] && source <(fzf --zsh)
+fi
+
+export EDITOR="hx"
+
+alias ggx="cd /data/cheese/git/lamnguyenx"
+alias gg5="cd /data/cheese/git/lamnt45"
+alias tmux='tmux attach || tmux new'
+
+if command -v afplay &>/dev/null; then
+    alias noti="(afplay /System/Library/Sounds/Submarine.aiff &>/dev/null &)"
+elif command -v paplay &>/dev/null; then
+    alias noti="(paplay /usr/share/sounds/freedesktop/stereo/complete.oga &>/dev/null &)"
+elif command -v aplay &>/dev/null; then
+    alias noti="(aplay /usr/share/sounds/alsa/Front_Center.wav &>/dev/null &)"
 fi

@@ -1,13 +1,13 @@
 #!/bin/bash
-# --------------------------------------------------------------
-#                         common
-# --------------------------------------------------------------
+# ==============================================================
+#                         COMMON
+# ==============================================================
 # Consolidated common utilities for development environment
 # Contains essentials, args, proxies, and misc functions
 
-# ===================================
-#            ESSENTIALS
-# ===================================
+# -----------------------------------
+#            essentials
+# -----------------------------------
 
 function reload_voice_bashrc() {
     source /data/docker/hanoi_it/voice.bashrc.sh
@@ -17,6 +17,10 @@ function get_host_ip() {
     echo "${HOST_IP:-$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || hostname -I | awk '{print $1}')}"
 }
 
+function get_timeslug() {
+    date +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
+}
+
 export HOST_IP=$(get_host_ip)
 export USER=${USER:-"$(id -un)"}
 export UID
@@ -24,9 +28,9 @@ export GID=$(id -g)
 export PATH="$HOME/.local/bin:/data/docker/hanoi_it/bin:$PATH"
 export MAVEN_MIRROR="http://${HOST_IP}:8888/repository/maven-public"
 
-# ===================================
-#              ARGS
-# ===================================
+# -----------------------------------
+#              args
+# -----------------------------------
 
 function parse_args() {
   local -a remaining_args=()
@@ -98,9 +102,9 @@ function parse_args() {
   return 0
 }
 
-# ===================================
-#            PROXIES
-# ===================================
+# -----------------------------------
+#            proxies
+# -----------------------------------
 
 function urlencode() {
   local string="$1"
@@ -148,9 +152,9 @@ function set_legacy_proxy() {
     print_proxy
 }
 
-# ===================================
-#             MISC
-# ===================================
+# -----------------------------------
+#             misc
+# -----------------------------------
 
 function print_proxy() {
 
@@ -274,29 +278,4 @@ function rename_easy() {
 }
 
 
-# --------------------------------------------------------------
-#                            MISCS
-# --------------------------------------------------------------
-alias ap="set_pp_proxy && amp"
-alias cl="set_pp_proxy && claude --verbose"
-export EDITOR="vim"
-
-if command -v fzf > /dev/null 2>&1; then
-    [ -n "$BASH_VERSION" ] && source <(fzf --bash)
-    [ -n "$ZSH_VERSION" ] && source <(fzf --zsh)
-fi
-
-export EDITOR="hx"
-
-alias ggx="cd /data/cheese/git/lamnguyenx"
-alias gg5="cd /data/cheese/git/lamnt45"
-alias tmux='tmux attach || tmux new'
-
-if command -v afplay &>/dev/null; then
-    alias noti="(afplay /System/Library/Sounds/Submarine.aiff &>/dev/null &)"
-elif command -v paplay &>/dev/null; then
-    alias noti="(paplay /usr/share/sounds/freedesktop/stereo/complete.oga &>/dev/null &)"
-elif command -v aplay &>/dev/null; then
-    alias noti="(aplay /usr/share/sounds/alsa/Front_Center.wav &>/dev/null &)"
-fi
 
