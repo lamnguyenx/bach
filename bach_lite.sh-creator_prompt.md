@@ -1,7 +1,7 @@
-Create a standalone bash script named `./bax_lite.sh` by extracting and consolidating functions from the `src/bax/` directory. Ensure the created script follows all conventions specified in `./coding_conventions/`.
+Create a standalone bash script named `./bach_lite.sh` by extracting and consolidating functions from the `src/bach/` directory. Ensure the created script follows all conventions specified in `./coding_conventions/`.
 
 ## Target Functions
-Locate and extract the following functions from anywhere within `src/bax/`:
+Locate and extract the following functions from anywhere within `src/bach/`:
 - **archive**: Handles file archiving operations
 - **echo_banner**: Displays formatted banner messages
 
@@ -37,7 +37,7 @@ The final script should:
 - Be lightweight, readable, and maintainable
 
 ## Implementation Process
-1. Search `src/bax/` directory to locate the target functions
+1. Search `src/bach/` directory to locate the target functions
 2. Analyze each function to identify all dependencies (functions, variables, constants)
 3. Recursively trace dependencies until you have the complete set
 4. Extract and consolidate into the new script with logical organization

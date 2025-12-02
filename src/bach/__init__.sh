@@ -1,16 +1,16 @@
 #!/bin/bash
 # ==============================================================
-#                         BAX.SH
+#                         BACH.SH
 # ==============================================================
 # Modularized bash configuration for development environment
 # Sources individual modules for better organization and maintainability
 
-if [ -n "${BAX_SOURCED:-}" ]; then
+if [ -n "${BACH_SOURCED:-}" ]; then
     return
 fi
 
 # Calculate script directory once
-bax_dir="$(dirname "${BASH_SOURCE[0]}")"
+bach_dir="$(dirname "${BASH_SOURCE[0]}")"
 
 # Define module arrays for better maintainability
 CORE_MODULES=("common.sh" "logging.sh")
@@ -21,28 +21,28 @@ PROJECT_MODULES=("terminal.sh" "lastly.sh")
 source_modules() {
     # Core modules - always loaded
     for module in "${CORE_MODULES[@]}"; do
-        source "$bax_dir/$module"
+        source "$bach_dir/$module"
     done
 
     # Application-specific modules
     for module in "${APP_MODULES[@]}"; do
-        source "$bax_dir/$module"
+        source "$bach_dir/$module"
     done
 
     # Project and terminal setup
     for module in "${PROJECT_MODULES[@]}"; do
-        source "$bax_dir/$module"
+        source "$bach_dir/$module"
     done
 }
 
 # Initial module loading
 source_modules
-BAX_SOURCED=1
+BACH_SOURCED=1
 
 # Reload function to reload all modules
-function reload_bax() {
+function reload_bach() {
     source_modules
-    echo "✅ All bax modules reloaded"
+    echo "✅ All bach modules reloaded"
 }
 
 function reload_bashrc() {

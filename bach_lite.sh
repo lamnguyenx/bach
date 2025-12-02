@@ -1,9 +1,9 @@
 #!/bin/bash
 # ==============================================================
-#                         BAX LITE
+#                         BACH LITE
 # ==============================================================
 # Lightweight script with archive and echo_banner functions
-# Extracted from src/bax/ directory
+# Extracted from src/bach/ directory
 
 # -----------------------------------
 #            configuration
