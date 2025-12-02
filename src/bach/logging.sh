@@ -72,18 +72,18 @@ function log_banner() {
         | while IFS= read line; do log "$line"; done
 }
 
-function echo_red()     { printf      "$ANSIFmt__red$@$ANSIFmt__reset\n"; }
-function echo_green()   { printf    "$ANSIFmt__green$@$ANSIFmt__reset\n"; }
-function echo_yellow()  { printf   "$ANSIFmt__yellow$@$ANSIFmt__reset\n"; }
-function echo_gray()    { printf     "$ANSIFmt__gray$@$ANSIFmt__reset\n"; }
-function echo_cyan()    { printf     "$ANSIFmt__cyan$@$ANSIFmt__reset\n"; }
+function echo_red()     { printf      "$ANSIFmt__red$*$ANSIFmt__reset\n"; }
+function echo_green()   { printf    "$ANSIFmt__green$*$ANSIFmt__reset\n"; }
+function echo_yellow()  { printf   "$ANSIFmt__yellow$*$ANSIFmt__reset\n"; }
+function echo_gray()    { printf     "$ANSIFmt__gray$*$ANSIFmt__reset\n"; }
+function echo_cyan()    { printf     "$ANSIFmt__cyan$*$ANSIFmt__reset\n"; }
 
-function echo_bold()        { printf                 "$ANSIFmt__bold$@$ANSIFmt__reset\n"; }
-function echo_bold_red()    { printf    "$ANSIFmt__red$ANSIFmt__bold$@$ANSIFmt__reset\n"; }
-function echo_bold_green()  { printf  "$ANSIFmt__green$ANSIFmt__bold$@$ANSIFmt__reset\n"; }
-function echo_bold_yellow() { printf "$ANSIFmt__yellow$ANSIFmt__bold$@$ANSIFmt__reset\n"; }
-function echo_bold_gray()   { printf   "$ANSIFmt__gray$ANSIFmt__bold$@$ANSIFmt__reset\n"; }
-function echo_bold_cyan()   { printf   "$ANSIFmt__cyan$ANSIFmt__bold$@$ANSIFmt__reset\n"; }
+function echo_bold()        { printf                 "$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
+function echo_bold_red()    { printf    "$ANSIFmt__red$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
+function echo_bold_green()  { printf  "$ANSIFmt__green$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
+function echo_bold_yellow() { printf "$ANSIFmt__yellow$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
+function echo_bold_gray()   { printf   "$ANSIFmt__gray$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
+function echo_bold_cyan()   { printf   "$ANSIFmt__cyan$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
 
 # General logging
 function log_date()         { printf "$ANSIFmt__gray$(date +"%Y-%m-%d %H:%M:%S,%3N ")$ANSIFmt__reset"; }
@@ -131,13 +131,13 @@ function separate_heading() {
 }
 
 # TODO: Parse message from stdin
-function log()         { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$1";                       shift; echo " $@";) >&2; }
-function log_bold()    { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold        "$1")"; shift; echo " $@";) >&2; }
-function log_red()     { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_red    "$1")"; shift; echo " $@";) >&2; }
-function log_green()   { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_green  "$1")"; shift; echo " $@";) >&2; }
-function log_yellow()  { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_yellow "$1")"; shift; echo " $@";) >&2; }
-function log_gray()    { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_gray   "$1")"; shift; echo " $@";) >&2; }
-function log_cyan()    { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_cyan   "$1")"; shift; echo " $@";) >&2; }
+function log()         { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$1";                       shift; echo " $*";) >&2; }
+function log_bold()    { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold        "$1")"; shift; echo " $*";) >&2; }
+function log_red()     { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_red    "$1")"; shift; echo " $*";) >&2; }
+function log_green()   { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_green  "$1")"; shift; echo " $*";) >&2; }
+function log_yellow()  { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_yellow "$1")"; shift; echo " $*";) >&2; }
+function log_gray()    { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_gray   "$1")"; shift; echo " $*";) >&2; }
+function log_cyan()    { (separate_heading "$@"; printf "%s" "$(log_date)$(echo_bold_cyan $p_level_tag)$(echo_bold_cyan   "$1")"; shift; echo " $*";) >&2; }
 function log_error()   { log_red    "[ERROR] $*" >&2; }
 function log_warning() { log_yellow "[WARNING] $*" >&2; }
 function log_info()    { log        "[INFO] $*" >&2; }

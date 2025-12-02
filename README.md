@@ -41,6 +41,16 @@ Available modules:
 
 To reload modules: `reload_bach`
 
+## Linting
+
+To check shellscripts, install `shellcheck` and run `shellcheck --severity=error <input_file>`.
+
+For VSCode users, install the Bash IDE extension (`mads-hartmann.bash-ide-vscode`) and add the following to your settings.json:
+
+```json
+"bashIde.shellcheckArguments": "--severity=warning"
+```
+
 ## Uninstallation
 
 ```bash

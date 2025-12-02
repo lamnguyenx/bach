@@ -38,14 +38,20 @@ function validate_params() {
 
 function filter_docker_services() {
     # Filter docker-compose services based on patterns
-    # Args: patterns to match (if none provided, returns all services)
+    # Args: $1 - profile (optional), remaining - patterns to match (if none provided, returns all services)
     # Returns: space-separated list of matched service names
     # Sets: FILTERED_SERVICES array with matched services
+    local profile="$1"
+    shift
     local patterns=("$@")
 
     # Get all services from docker-compose
+    local profile_flag=""
+    if [ -n "$profile" ]; then
+        profile_flag="--profile $profile"
+    fi
     local all_services
-    all_services=$(docker-compose config --services 2>/dev/null)
+    all_services=$( (docker-compose $profile_flag config --services 2>/dev/null; if [ -z "$profile" ]; then docker-compose --profile dev config --services 2>/dev/null; fi) | sort | uniq )
     if [ $? -ne 0 ]; then
         log_error "Failed to get docker-compose services. Are you in a directory with docker-compose.yml?"
         return 1
@@ -177,18 +183,32 @@ function dcl() {
 # -----------------------------------
 
 function hotloadl() {
-    $DC kill $@ && \
-    $DC up -d --no-deps --force-recreate $@ && \
-    $DC logs --no-log-prefix -f --tail 100 $@
+    $DC kill "$@" && \
+    $DC up -d --no-deps --force-recreate "$@" && \
+    $DC logs --no-log-prefix -f --tail 100 "$@"
 }
 
 function hotload() {
     # Hot reload docker-compose services with pattern matching
-    # Args: patterns to match service names (optional - matches all if none provided)
-    local patterns=("$@")
+    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
+    local profile=""
+    local patterns=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --profile)
+                profile="$2"
+                shift 2
+                ;;
+            *)
+                patterns+=("$1")
+                shift
+                ;;
+        esac
+    done
 
     # Filter services based on patterns
-    if ! filter_docker_services "${patterns[@]}"; then
+    if ! filter_docker_services "$profile" "${patterns[@]}"; then
         return 1
     fi
 
@@ -203,11 +223,25 @@ function hotload() {
 
 function coldload() {
     # Cold start docker-compose services with pattern matching
-    # Args: patterns to match service names (optional - matches all if none provided)
-    local patterns=("$@")
+    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
+    local profile=""
+    local patterns=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --profile)
+                profile="$2"
+                shift 2
+                ;;
+            *)
+                patterns+=("$1")
+                shift
+                ;;
+        esac
+    done
 
     # Filter services based on patterns
-    if ! filter_docker_services "${patterns[@]}"; then
+    if ! filter_docker_services "$profile" "${patterns[@]}"; then
         return 1
     fi
 
@@ -221,11 +255,25 @@ function coldload() {
 
 function hotkill() {
     # Kill docker-compose services with pattern matching
-    # Args: patterns to match service names (optional - matches all if none provided)
-    local patterns=("$@")
+    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
+    local profile=""
+    local patterns=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --profile)
+                profile="$2"
+                shift 2
+                ;;
+            *)
+                patterns+=("$1")
+                shift
+                ;;
+        esac
+    done
 
     # Filter services based on patterns
-    if ! filter_docker_services "${patterns[@]}"; then
+    if ! filter_docker_services "$profile" "${patterns[@]}"; then
         return 1
     fi
 
@@ -236,11 +284,25 @@ function hotkill() {
 
 function hotlogs() {
     # Follow logs for docker-compose services with pattern matching
-    # Args: patterns to match service names (optional - matches all if none provided)
-    local patterns=("$@")
+    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
+    local profile=""
+    local patterns=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --profile)
+                profile="$2"
+                shift 2
+                ;;
+            *)
+                patterns+=("$1")
+                shift
+                ;;
+        esac
+    done
 
     # Filter services based on patterns
-    if ! filter_docker_services "${patterns[@]}"; then
+    if ! filter_docker_services "$profile" "${patterns[@]}"; then
         return 1
     fi
 
@@ -331,6 +393,7 @@ function dc_replace_tag() {
     # Define options as variables (dry run disabled by default)
     local dry=false
     local live=false
+    local profile=""
 
     # Define help message with proper indentation
     local help_message="\
@@ -340,9 +403,10 @@ function dc_replace_tag() {
 
     Options:
         --dry [true|false]      Show what would be tagged without actually tagging (default: false)
-                                 Can be used as flag: --dry (same as --dry true)
+                                  Can be used as flag: --dry (same as --dry true)
         --live [true|false]     Check only running services, not all configured (default: false)
-                                 Can be used as flag: --live (same as --live true)
+                                  Can be used as flag: --live (same as --live true)
+        --profile <profile>     Use specific profile for docker-compose operations
         --config <file>         Load options from config file
         --help|-h               Show this help message
 
@@ -353,14 +417,14 @@ function dc_replace_tag() {
     Examples:
         dc_replace_tag v1.0.0 v1.1.0
         dc_replace_tag --dry v1.0.0 v1.1.0
-        dc_replace_tag --dry true v1.0.0 v1.1.0
-        dc_replace_tag v1.0.0 v1.1.0 --dry
+        dc_replace_tag --profile dev v1.0.0 v1.1.0
         dc_replace_tag --live --dry v1.0.0 v1.1.0
         dc_replace_tag --config my-config.sh v1.0.0 v1.1.0
 
     Config file example:
         dry=true
         live=false
+        profile=dev
     "
 
     # Store original arguments for processing
@@ -394,6 +458,9 @@ function dc_replace_tag() {
                     skip_next=true
                 fi
                 ;;
+            --profile)
+                skip_next=true
+                ;;
             --config)
                 skip_next=true
                 ;;
@@ -407,6 +474,15 @@ function dc_replace_tag() {
         esac
     done
 
+    # Get profile if specified
+    local profile=""
+    for ((i=0; i<${#original_args[@]}; i++)); do
+        if [[ ${original_args[$i]} == --profile ]]; then
+            profile="${original_args[$i+1]}"
+            break
+        fi
+    done
+
     # Get remaining arguments (source and target strings)
     local source_string="${positional_args[0]}"
     local target_string="${positional_args[1]}"
@@ -417,15 +493,21 @@ function dc_replace_tag() {
         return 1
     fi
 
+    # Get profile flag
+    local profile_flag=""
+    if [ -n "$profile" ]; then
+        profile_flag="--profile $profile"
+    fi
+
     # Get list of images based on mode
     local images_list=""
     if [ "$live" = "true" ]; then
         echo "=== Checking running services ==="
-        images_list=$(docker-compose ps --format "table {{.Service}}\t{{.Image}}" \
+        images_list=$(docker-compose $profile_flag ps --format "table {{.Service}}\t{{.Image}}" \
             | tail -n +2)
     else
         echo "=== Checking all configured services ==="
-        images_list=$(docker-compose config \
+        images_list=$(docker-compose $profile_flag config \
             | grep -E '^\s*image:' \
             | sed 's/.*image: //' \
             | sort \

@@ -20,9 +20,9 @@ function get_timeslug() {
 }
 
 function echo_repeat() {
-    local string="\\$1"
+    local string="$1"
     local total_count="$2"
-    printf "%${total_count}s\n" | sed "s/ /$string/g"
+    printf "%${total_count}s\n" | sed "s| |$string|g"
 }
 
 function echo_center() {
@@ -33,8 +33,8 @@ function echo_center() {
     echo "$(echo_repeat " " $offset_len)$message"
 }
 
-function echo_green() { printf "$ANSIFmt__green$@$ANSIFmt__reset\n"; }
-function echo_red()   { printf "$ANSIFmt__red$@$ANSIFmt__reset\n"; }
+function echo_green() { printf "$ANSIFmt__green$*$ANSIFmt__reset\n"; }
+function echo_red()   { printf "$ANSIFmt__red$*$ANSIFmt__reset\n"; }
 
 # -----------------------------------
 #            core functions
@@ -66,7 +66,7 @@ function archive() {
 
 function echo_banner() {
     local message="$1"
-    local pattern="$2"
+    local pattern="${2:-"-"}"
     local room_len="${3:-"60"}"
     echo_repeat "$pattern" $room_len
     echo_center "$message" $room_len

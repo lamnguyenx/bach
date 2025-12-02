@@ -75,16 +75,20 @@ fi
 # -----------------------------------
 #            misc
 # -----------------------------------
+
+# Load saved OLDPWD for cd -
+if [ -f ~/.oldpwd ] && [ -d "$(cat ~/.oldpwd 2>/dev/null)" ]; then
+    OLDPWD=$(cat ~/.oldpwd)
+fi
 alias ap="set_pp_proxy && amp"
 alias cl="set_pp_proxy && claude --verbose"
-export EDITOR="vim"
 
 if command -v fzf > /dev/null 2>&1; then
     [ -n "$BASH_VERSION" ] && source <(fzf --bash)
     [ -n "$ZSH_VERSION" ] && source <(fzf --zsh)
 fi
 
-export EDITOR="hx"
+export EDITOR="code --wait"
 
 alias ggx="cd /data/cheese/git/lamnguyenx"
 alias gg5="cd /data/cheese/git/lamnt45"
@@ -97,3 +101,15 @@ elif command -v paplay &>/dev/null; then
 elif command -v aplay &>/dev/null; then
     alias noti="(aplay /usr/share/sounds/alsa/Front_Center.wav &>/dev/null &)"
 fi
+
+export ORIGIN_DIR="$PWD"
+function cd() {
+    if [ "$1" = "=" ]; then
+        builtin cd "$ORIGIN_DIR"
+    else
+        builtin cd "$@"
+    fi
+}
+
+# Save OLDPWD on exit for cd -
+trap 'if [ -n "$OLDPWD" ] && [ -d "$OLDPWD" ]; then echo "$OLDPWD" > ~/.oldpwd; fi' EXIT
