@@ -1,6 +1,6 @@
 # Bach
 
-A modular bash configuration toolkit for developers.
+> **Summary**: A modular bash configuration toolkit for developers, offering organized modules for common tasks, logging, and development tools with easy installation.
 
 > **⚠️ WARNING:** Do NOT move this directory after installation. The configuration sources files using absolute paths that will break if relocated.
 
