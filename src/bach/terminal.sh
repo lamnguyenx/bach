@@ -94,7 +94,8 @@ PS1="\
 (\$(basename "${0#-}")) (\$(date +%T.%3Ns))\[$ANSIFmt__violet\]\$(get_proxy_indicator)\[$ANSIFmt__reset\] \
 ${debian_chroot:+($debian_chroot)}\
 \[$PS_COLOR_1\[${debian_chroot:+($debian_chroot)}\
-\u @ ${HOST_IP}$ANSIFmt__reset ($TERMINAL_ID) \[$PS_COLOR_2\[\
+\u${HOST_IP:+ @ }${HOST_IP}${HOST_MODEL:+ / }${HOST_MODEL}$ANSIFmt__reset \
+($TERMINAL_ID) \[$PS_COLOR_2\[\
 \$PWD$ANSIFmt__reset\$(get_git_branch_tag)\$(get_subbranch_tag)\n>> "
 
 

@@ -14,14 +14,36 @@ function reload_voice_bashrc() {
 }
 
 function get_host_ip() {
-    echo "${HOST_IP:-$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || hostname -I | awk '{print $1}')}"
+    if [ "$(uname)" = "Darwin" ]; then
+        # macOS: try multiple interfaces
+        echo "${HOST_IP:-$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "")}"
+    else
+        # Linux: use hostname -I
+        echo "${HOST_IP:-$(hostname -I 2>/dev/null | awk '{print $1}' || echo "")}"
+    fi
+}
+
+function get_host_model() {
+    if [ "$(uname)" = "Darwin" ]; then
+        sysctl -n hw.model 2>/dev/null || echo "Unknown"
+    else
+        cat /sys/class/dmi/id/product_name 2>/dev/null || echo "Unknown"
+    fi
 }
 
 function get_timeslug() {
-    date +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
+    $DATE_CMD +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
 }
 
+# Determine the best date command for precision
+if command -v gdate >/dev/null 2>&1; then
+    DATE_CMD="gdate"
+else
+    DATE_CMD="date"
+fi
+
 export HOST_IP=$(get_host_ip)
+export HOST_MODEL=$(get_host_model)
 export USER=${USER:-"$(id -un)"}
 export UID
 export GID=$(id -g)
@@ -177,6 +199,10 @@ function print_proxy() {
 }
 
 function accept_all(){
+    if [ "$(uname)" != "Linux" ]; then
+        echo "accept_all (iptables) is only available on Linux systems"
+        return 1
+    fi
 
     local IP=$1
 
@@ -185,6 +211,10 @@ function accept_all(){
 }
 
 function list_swap(){
+    if [ "$(uname)" != "Linux" ]; then
+        echo "list_swap is only available on Linux systems"
+        return 1
+    fi
     find /proc -maxdepth 2 -path "/proc/[0-9]*/status" -readable -exec awk -v FS=":" '{process[$1]=$2;sub(/^[ \t]+/,"",process[$1]);} END {if(process["VmSwap"] && process["VmSwap"] != "0 kB") printf "%10s %-30s %20s\n",process["Pid"],process["Name"],process["VmSwap"]}' '{}' \; \
         | awk '{print $(NF-1),$0}' \
         | sort -h \

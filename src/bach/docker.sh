@@ -38,20 +38,23 @@ function validate_params() {
 
 function filter_docker_services() {
     # Filter docker-compose services based on patterns
-    # Args: $1 - profile (optional), remaining - patterns to match (if none provided, returns all services)
+    # Args: patterns to match (if none provided, returns all services)
     # Returns: space-separated list of matched service names
     # Sets: FILTERED_SERVICES array with matched services
-    local profile="$1"
-    shift
     local patterns=("$@")
 
     # Get all services from docker-compose
     local profile_flag=""
-    if [ -n "$profile" ]; then
-        profile_flag="--profile $profile"
+    if [ -n "$COMPOSE_PROFILES" ]; then
+        for p in $(echo "$COMPOSE_PROFILES" | tr ',' ' '); do
+            profile_flag="$profile_flag --profile $p"
+        done
+    fi
+    if [ -z "$profile_flag" ]; then
+        profile_flag="--profile dev"
     fi
     local all_services
-    all_services=$( (docker-compose $profile_flag config --services 2>/dev/null; if [ -z "$profile" ]; then docker-compose --profile dev config --services 2>/dev/null; fi) | sort | uniq )
+    all_services=$(docker-compose $profile_flag config --services 2>/dev/null | sort | uniq)
     if [ $? -ne 0 ]; then
         log_error "Failed to get docker-compose services. Are you in a directory with docker-compose.yml?"
         return 1
@@ -68,7 +71,15 @@ function filter_docker_services() {
         for service in $all_services; do
             local matched=false
             for pattern in "${patterns[@]}"; do
-                if [[ $service =~ $pattern ]]; then
+                # Auto-add ^ and $ for exact matching if not present
+                local regex_pattern="$pattern"
+                if [[ $regex_pattern != ^* ]]; then
+                    regex_pattern="^$regex_pattern"
+                fi
+                if [[ $regex_pattern != *$ ]]; then
+                    regex_pattern="$regex_pattern$"
+                fi
+                if [[ $service =~ $regex_pattern ]]; then
                     matched=true
                     break
                 fi
@@ -190,25 +201,11 @@ function hotloadl() {
 
 function hotload() {
     # Hot reload docker-compose services with pattern matching
-    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
-    local profile=""
-    local patterns=()
-
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --profile)
-                profile="$2"
-                shift 2
-                ;;
-            *)
-                patterns+=("$1")
-                shift
-                ;;
-        esac
-    done
+    # Args: patterns to match service names (optional - matches all if none provided)
+    local patterns=("$@")
 
     # Filter services based on patterns
-    if ! filter_docker_services "$profile" "${patterns[@]}"; then
+    if ! filter_docker_services "${patterns[@]}"; then
         return 1
     fi
 
@@ -223,25 +220,11 @@ function hotload() {
 
 function coldload() {
     # Cold start docker-compose services with pattern matching
-    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
-    local profile=""
-    local patterns=()
-
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --profile)
-                profile="$2"
-                shift 2
-                ;;
-            *)
-                patterns+=("$1")
-                shift
-                ;;
-        esac
-    done
+    # Args: patterns to match service names (optional - matches all if none provided)
+    local patterns=("$@")
 
     # Filter services based on patterns
-    if ! filter_docker_services "$profile" "${patterns[@]}"; then
+    if ! filter_docker_services "${patterns[@]}"; then
         return 1
     fi
 
@@ -255,25 +238,11 @@ function coldload() {
 
 function hotkill() {
     # Kill docker-compose services with pattern matching
-    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
-    local profile=""
-    local patterns=()
-
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --profile)
-                profile="$2"
-                shift 2
-                ;;
-            *)
-                patterns+=("$1")
-                shift
-                ;;
-        esac
-    done
+    # Args: patterns to match service names (optional - matches all if none provided)
+    local patterns=("$@")
 
     # Filter services based on patterns
-    if ! filter_docker_services "$profile" "${patterns[@]}"; then
+    if ! filter_docker_services "${patterns[@]}"; then
         return 1
     fi
 
@@ -284,25 +253,11 @@ function hotkill() {
 
 function hotlogs() {
     # Follow logs for docker-compose services with pattern matching
-    # Args: [--profile <profile>] patterns to match service names (optional - matches all if none provided)
-    local profile=""
-    local patterns=()
-
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --profile)
-                profile="$2"
-                shift 2
-                ;;
-            *)
-                patterns+=("$1")
-                shift
-                ;;
-        esac
-    done
+    # Args: patterns to match service names (optional - matches all if none provided)
+    local patterns=("$@")
 
     # Filter services based on patterns
-    if ! filter_docker_services "$profile" "${patterns[@]}"; then
+    if ! filter_docker_services "${patterns[@]}"; then
         return 1
     fi
 
@@ -374,7 +329,7 @@ function get_dockerfile_content_legacy() {
 
     local image="$1"
     docker history --no-trunc "$image" \
-        | tac \
+        | sed '1!G;h;$!d' \
         | tr -s ' ' \
         | cut -d " " -f 5- \
         | sed 's,^/bin/sh -c #(nop) ,,g' \
@@ -403,10 +358,9 @@ function dc_replace_tag() {
 
     Options:
         --dry [true|false]      Show what would be tagged without actually tagging (default: false)
-                                  Can be used as flag: --dry (same as --dry true)
+                                   Can be used as flag: --dry (same as --dry true)
         --live [true|false]     Check only running services, not all configured (default: false)
-                                  Can be used as flag: --live (same as --live true)
-        --profile <profile>     Use specific profile for docker-compose operations
+                                   Can be used as flag: --live (same as --live true)
         --config <file>         Load options from config file
         --help|-h               Show this help message
 
@@ -417,14 +371,12 @@ function dc_replace_tag() {
     Examples:
         dc_replace_tag v1.0.0 v1.1.0
         dc_replace_tag --dry v1.0.0 v1.1.0
-        dc_replace_tag --profile dev v1.0.0 v1.1.0
         dc_replace_tag --live --dry v1.0.0 v1.1.0
         dc_replace_tag --config my-config.sh v1.0.0 v1.1.0
 
     Config file example:
         dry=true
         live=false
-        profile=dev
     "
 
     # Store original arguments for processing
@@ -458,9 +410,6 @@ function dc_replace_tag() {
                     skip_next=true
                 fi
                 ;;
-            --profile)
-                skip_next=true
-                ;;
             --config)
                 skip_next=true
                 ;;
@@ -472,15 +421,6 @@ function dc_replace_tag() {
                 positional_args+=("$arg")
                 ;;
         esac
-    done
-
-    # Get profile if specified
-    local profile=""
-    for ((i=0; i<${#original_args[@]}; i++)); do
-        if [[ ${original_args[$i]} == --profile ]]; then
-            profile="${original_args[$i+1]}"
-            break
-        fi
     done
 
     # Get remaining arguments (source and target strings)
@@ -495,8 +435,13 @@ function dc_replace_tag() {
 
     # Get profile flag
     local profile_flag=""
-    if [ -n "$profile" ]; then
-        profile_flag="--profile $profile"
+    if [ -n "$COMPOSE_PROFILES" ]; then
+        for p in $(echo "$COMPOSE_PROFILES" | tr ',' ' '); do
+            profile_flag="$profile_flag --profile $p"
+        done
+    fi
+    if [ -z "$profile_flag" ]; then
+        profile_flag="--profile dev"
     fi
 
     # Get list of images based on mode

@@ -15,8 +15,15 @@ ANSIFmt__green='\033[32m'
 # -----------------------------------
 #            utilities
 # -----------------------------------
+# Determine the best date command for precision
+if command -v gdate >/dev/null 2>&1; then
+    DATE_CMD="gdate"
+else
+    DATE_CMD="date"
+fi
+
 function get_timeslug() {
-    date +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
+    $DATE_CMD +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
 }
 
 function echo_repeat() {

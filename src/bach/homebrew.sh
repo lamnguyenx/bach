@@ -5,13 +5,21 @@
 function set_brew_envs() {
     export CONDA_BACKUP_PATH="$PATH"
 
-    if [[ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
-        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    local brew_path=""
+    if [ "$(uname)" = "Darwin" ]; then
+        brew_path="/usr/local/bin/brew"  # Intel macOS
+        [ -f "/opt/homebrew/bin/brew" ] && brew_path="/opt/homebrew/bin/brew"  # Apple Silicon
+    else
+        brew_path="/home/linuxbrew/.linuxbrew/bin/brew"
+    fi
+
+    if [ -f "$brew_path" ]; then
+        eval "$("$brew_path" shellenv)"
         echo "✅ Homebrew activated"
         echo "📍 Brew path: $(which brew)"
         echo "🔧 Use 'remove_brew_envs' to restore conda-only environment"
     else
-        echo "❌ Homebrew not found at /home/linuxbrew/.linuxbrew/bin/brew"
+        echo "❌ Homebrew not found at $brew_path"
         return 1
     fi
 }

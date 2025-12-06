@@ -38,8 +38,8 @@ source \"$BACH_INIT_PATH\"
     # Replace or add the bach block
     if grep -q "# >>> bach initialize >>>" ~/.bashrc 2>/dev/null; then
         # Delete the old block
-        sed -i '.bak' '/# >>> bach initialize >>>/,/# <<< bach initialize <<</d' ~/.bashrc
-        echo "Removed existing bach block (backup created as ~/.bashrc.bak)"
+        sed -i.bak '/# >>> bach initialize >>>/,/# <<< bach initialize <<</d' ~/.bashrc && rm ~/.bashrc.bak 2>/dev/null || true
+        echo "Removed existing bach block"
     fi
     # Add new block at the end
     echo "" >> ~/.bashrc
@@ -53,8 +53,8 @@ uninstall_bach() {
     # Remove the bach block from ~/.bashrc
     if grep -q "# >>> bach initialize >>>" ~/.bashrc 2>/dev/null; then
         # Delete the block
-        sed -i '.bak' '/# >>> bach initialize >>>/,/# <<< bach initialize <<</d' ~/.bashrc
-        echo "Removed bach block (backup created as ~/.bashrc.bak)"
+        sed -i.bak '/# >>> bach initialize >>>/,/# <<< bach initialize <<</d' ~/.bashrc && rm ~/.bashrc.bak 2>/dev/null || true
+        echo "Removed bach block"
         echo "✅ bach uninstalled successfully! Restart your shell or run 'source ~/.bashrc' to apply changes."
     else
         echo "bach is not installed."
