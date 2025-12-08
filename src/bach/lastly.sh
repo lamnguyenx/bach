@@ -1,36 +1,7 @@
 #!/bin/bash
 # ==============================================================
-#                         ALIASES
+#                         LASTLY
 # ==============================================================
-# Common shell aliases, functions, and misc for productivity
-
-# Enable color support for ls and add handy aliases
-if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
-    alias dir='dir --color=auto'
-    alias vdir='vdir --color=auto'
-fi
-
-alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
-
-alias oc="opencode"
-alias occ="opencode --continue"
-
-alias a="amp"
-alias ac="amp threads continue"
-
-alias lg="lazygit"
-alias gu="gituit"
-
-alias tb="SHELL=/bin/bash tmux"
-
-# Check if running in VS Code terminal and set editor accordingly
-if [ "$TERM_PROGRAM" = "vscode" ]; then
-    export EDITOR="code --wait"
-fi
 
 # -----------------------------------
 #            just one
@@ -113,3 +84,44 @@ function cd() {
 
 # Save OLDPWD on exit for cd -
 trap 'if [ -n "$OLDPWD" ] && [ -d "$OLDPWD" ]; then echo "$OLDPWD" > ~/.oldpwd; fi' EXIT
+
+
+# -----------------------------------
+#              aliases
+# -----------------------------------
+# Check if running in VS Code terminal and set editor accordingly
+if [ "$TERM_PROGRAM" = "vscode" ]; then
+    export EDITOR="code --wait"
+fi
+
+# Enable color support for ls and add handy aliases
+if [ -x /usr/bin/dircolors ]; then
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+    alias ls='ls --color=auto'
+    alias dir='dir --color=auto'
+    alias vdir='vdir --color=auto'
+fi
+
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+
+alias oc="opencode"
+alias occ="opencode --continue"
+
+alias a="amp"
+alias ac="amp threads continue"
+
+alias lg="lazygit"
+alias gu="gituit"
+
+alias tb="SHELL=/bin/bash tmux"
+
+alias jc="just_commit"
+alias jca="just_commit_all"
+
+if [ "$(uname)" = "Darwin" ]; then
+  alias rs="rsync -havP --stats"
+else
+  alias rs="rsync -havP --stats --info=progress2"
+fi

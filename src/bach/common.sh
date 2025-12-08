@@ -24,15 +24,97 @@ function get_host_ip() {
 }
 
 function get_host_model() {
+    local model
     if [ "$(uname)" = "Darwin" ]; then
-        sysctl -n hw.model 2>/dev/null || echo "Unknown"
+        model=$(sysctl -n hw.model 2>/dev/null || echo "Unknown")
     else
-        cat /sys/class/dmi/id/product_name 2>/dev/null || echo "Unknown"
+        model=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "Unknown")
+    fi
+    # Use slugify_v3 to normalize the model name
+    model=$(slugify_v2 "$model")
+    # Truncate if longer than 16 characters
+    if [ ${#model} -gt 16 ]; then
+        echo "${model:0:13}[..]"
+    else
+        echo "$model"
     fi
 }
 
 function get_timeslug() {
     $DATE_CMD +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
+}
+
+function slugify() {
+    local value="$1"
+
+    # Remove non-ASCII characters (similar to Python's encode('ascii', 'ignore'))
+    # Use tr to delete non-ASCII characters (0x80-0xFF)
+    value=$(printf '%s' "$value" | LC_ALL=C tr -d '\200-\377')
+
+    # Remove characters that are not word characters, spaces, or hyphens
+    value=$(printf '%s' "$value" | sed 's/[^[:alnum:]_[:space:]-]//g')
+
+    # Strip leading and trailing whitespace and convert to lowercase
+    value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]')
+
+    # Replace multiple consecutive hyphens/spaces with single hyphen
+    value=$(printf '%s' "$value" | tr -s '[:space:]-' '-')
+
+    printf '%s' "$value"
+}
+
+function slugify_v2() {
+    local value="$1"
+
+    # Remove non-ASCII characters (similar to Python's encode('ascii', 'ignore'))
+    # Use tr to delete non-ASCII characters (0x80-0xFF)
+    value=$(printf '%s' "$value" | LC_ALL=C tr -d '\200-\377')
+
+    # Remove characters that are not dots, word characters, spaces, or hyphens
+    value=$(printf '%s' "$value" | sed 's/[^.[:alnum:]_[:space:]-]//g')
+
+    # Strip leading and trailing whitespace
+    value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+
+    # Replace multiple consecutive hyphens/spaces with single hyphen
+    value=$(printf '%s' "$value" | tr -s '[:space:]-' '-')
+
+    printf '%s' "$value"
+}
+
+function slugify_v2() {
+    local value="$1"
+
+    # Remove non-ASCII characters (similar to Python's encode('ascii', 'ignore'))
+    # Use tr to delete non-ASCII characters (0x80-0xFF)
+    value=$(printf '%s' "$value" | LC_ALL=C tr -d '\200-\377')
+
+    # Remove characters that are not dots, word characters, spaces, or hyphens
+    value=$(printf '%s' "$value" | sed 's/[^.[:alnum:]_[:space:]-]//g')
+
+    # Strip leading and trailing whitespace
+    value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+
+    # Replace multiple hyphens/spaces with single hyphen
+    value=$(printf '%s' "$value" | sed 's/[-[:space:]]\{1,\}/-/g')
+
+    printf '%s' "$value"
+}
+
+function slugify_v3() {
+    local value="$1"
+
+    # Remove non-ASCII characters (similar to Python's encode('ascii', 'ignore'))
+    # Use tr to delete non-ASCII characters (0x80-0xFF)
+    value=$(printf '%s' "$value" | LC_ALL=C tr -d '\200-\377')
+
+    # Remove characters that are not dots, word characters (including underscore), spaces, or hyphens
+    value=$(printf '%s' "$value" | sed 's/[^.[:alnum:]_[:space:]-]//g')
+
+    # Strip leading and trailing whitespace
+    value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+
+    printf '%s' "$value"
 }
 
 # Determine the best date command for precision

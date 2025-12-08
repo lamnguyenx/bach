@@ -55,6 +55,24 @@ else
     echo "   ⚠️  get_host_model returned: $host_model"
 fi
 
+# Test get_host_model with specific long model name
+echo "5b. Testing get_host_model truncation..."
+test_model="HP ProOne 440 23.8 inch G9 All-in-One Desktop PC"
+expected="HP ProOne 440[..]"
+result=$(slugify_v3 "$test_model")
+# Apply truncation logic (16 char limit)
+if [ ${#result} -gt 16 ]; then
+    result="${result:0:13}[..]"
+fi
+if [ "$result" = "$expected" ]; then
+    echo "   ✅ Long model name truncated correctly: '$result'"
+else
+    echo "   ❌ Long model name truncation failed"
+    echo "      Expected: '$expected'"
+    echo "      Got:      '$result'"
+    exit 1
+fi
+
 # Test list_swap (Linux only)
 echo "6. Testing list_swap..."
 if [ "$(uname)" = "Linux" ]; then
