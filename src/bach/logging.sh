@@ -86,7 +86,7 @@ function echo_bold_gray()   { printf   "$ANSIFmt__gray$ANSIFmt__bold$*$ANSIFmt__
 function echo_bold_cyan()   { printf   "$ANSIFmt__cyan$ANSIFmt__bold$*$ANSIFmt__reset\n"; }
 
 # General logging
-function log_date()         { printf "$ANSIFmt__gray$(date +"%Y-%m-%d %H:%M:%S,%3N ")$ANSIFmt__reset"; }
+function log_date()         { printf "$ANSIFmt__gray$($DATE_CMD +"%Y-%m-%d %H:%M:%S,%3N ")$ANSIFmt__reset"; }
 function log_gray_simple()  { printf "$(echo_bold_cyan $p_level_tag)$(echo_gray "$(log_date)[$0]")$(echo_gray "$@")\n"; }
 function log_fill() {
     local single_char="$1"

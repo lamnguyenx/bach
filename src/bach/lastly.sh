@@ -125,3 +125,11 @@ if [ "$(uname)" = "Darwin" ]; then
 else
   alias rs="rsync -havP --stats --info=progress2"
 fi
+
+alias rc='\
+rclone sync --progress --stats 10s \
+  --links \
+  --transfers=8 \
+  --checkers=8 \
+  --fast-list \
+  -v'
