@@ -339,6 +339,94 @@ function get_dockerfile_content_legacy() {
         | sed '$d'
 }
 
+function docker_save() {
+    # Save a docker image to a tar file using slugified name
+    # Args: $1 - docker image name
+    if ! validate_params 1 "docker_save" "docker image name"; then
+        return 1
+    fi
+
+    local image_name="$1"
+
+    # Check if image exists locally
+    if ! docker image inspect "$image_name" >/dev/null 2>&1; then
+        log_error "❌ Image '$image_name' not found locally"
+        return 1
+    fi
+
+    # Get slugified name for the tar file
+    local slugified_name=$(slugify_docker "$image_name")
+    local tar_file="${slugified_name}.tar"
+
+    log_info "💾 Saving docker image '$image_name' to '$tar_file'..."
+
+    # Save the image to tar file
+    if docker save "$image_name" > "$tar_file"; then
+        local file_size=$(du -h "$tar_file" | cut -f1)
+        log_ok "✅ Successfully saved '$image_name' to '$tar_file' ($file_size)"
+    else
+        log_error "❌ Failed to save image '$image_name'"
+        return 1
+    fi
+}
+
+function docker_savez() {
+    # Save a docker image to a compressed tar.gz file using slugified name
+    # Args: $1 - docker image name
+    if ! validate_params 1 "docker_savez" "docker image name"; then
+        return 1
+    fi
+
+    local image_name="$1"
+
+    # Check if image exists locally
+    if ! docker image inspect "$image_name" >/dev/null 2>&1; then
+        log_error "❌ Image '$image_name' not found locally"
+        return 1
+    fi
+
+    # Get slugified name for the tar.gz file
+    local slugified_name=$(slugify_docker "$image_name")
+    local tar_gz_file="${slugified_name}.tar.gz"
+
+    log_info "📦 Saving and compressing docker image '$image_name' to '$tar_gz_file'..."
+
+    # Save the image to compressed tar.gz file
+    if docker save "$image_name" | gzip > "$tar_gz_file"; then
+        local file_size=$(du -h "$tar_gz_file" | cut -f1)
+        log_ok "✅ Successfully saved and compressed '$image_name' to '$tar_gz_file' ($file_size)"
+    else
+        log_error "❌ Failed to save and compress image '$image_name'"
+        return 1
+    fi
+}
+
+function docker_loadz() {
+    # Load a compressed docker image from a tar.gz file
+    # Args: $1 - path to tar.gz file
+    if ! validate_params 1 "docker_loadz" "path to tar.gz file"; then
+        return 1
+    fi
+
+    local tar_gz_file="$1"
+
+    # Check if file exists
+    if [ ! -f "$tar_gz_file" ]; then
+        log_error "❌ File '$tar_gz_file' not found"
+        return 1
+    fi
+
+    log_info "📦 Loading compressed docker image from '$tar_gz_file'..."
+
+    # Load the compressed image
+    if gunzip -c "$tar_gz_file" | docker load; then
+        log_ok "✅ Successfully loaded docker image from '$tar_gz_file'"
+    else
+        log_error "❌ Failed to load docker image from '$tar_gz_file'"
+        return 1
+    fi
+}
+
 # -----------------------------------
 #       advanced operations
 # -----------------------------------
