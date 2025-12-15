@@ -122,6 +122,8 @@ alias jca="just_commit_all"
 
 if [ "$(uname)" = "Darwin" ]; then
   alias rs="rsync -havP --stats"
+  alias gdu="gdu-go"
+  alias ln="gln"
 else
   alias rs="rsync -havP --stats --info=progress2"
 fi

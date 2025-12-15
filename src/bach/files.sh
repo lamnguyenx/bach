@@ -4,6 +4,10 @@
 # ==============================================================
 # File manipulation utilities
 
+function get_md5sum_short() {
+    md5sum "$1" | cut -d' ' -f1 | cut -c1-7
+}
+
 function archive() {
     for source in "$@"; do
         timestamp="$(get_timeslug)"
