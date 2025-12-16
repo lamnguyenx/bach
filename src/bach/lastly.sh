@@ -65,14 +65,6 @@ alias ggx="cd /data/cheese/git/lamnguyenx"
 alias gg5="cd /data/cheese/git/lamnt45"
 alias tmux='tmux attach || tmux new'
 
-if command -v afplay &>/dev/null; then
-    alias noti="(afplay /System/Library/Sounds/Submarine.aiff &>/dev/null &)"
-elif command -v paplay &>/dev/null; then
-    alias noti="(paplay /usr/share/sounds/freedesktop/stereo/complete.oga &>/dev/null &)"
-elif command -v aplay &>/dev/null; then
-    alias noti="(aplay /usr/share/sounds/alsa/Front_Center.wav &>/dev/null &)"
-fi
-
 export ORIGIN_DIR="$PWD"
 function cd() {
     if [ "$1" = "=" ]; then
