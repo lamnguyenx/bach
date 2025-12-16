@@ -135,3 +135,7 @@ rclone sync --progress --stats 10s \
   --checkers=8 \
   --fast-list \
   -v'
+
+export UID
+GID=$(id -g)
+export GID

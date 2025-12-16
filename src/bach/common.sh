@@ -9,10 +9,6 @@
 #            essentials
 # -----------------------------------
 
-function reload_voice_bashrc() {
-    source /data/docker/hanoi_it/voice.bashrc.sh
-}
-
 function get_host_ip() {
     if [ "$(uname)" = "Darwin" ]; then
         # macOS: try multiple interfaces
@@ -39,6 +35,13 @@ function get_host_model() {
         echo "$model"
     fi
 }
+
+# Determine the best date command for precision
+if command -v gdate >/dev/null 2>&1; then
+    DATE_CMD="gdate"
+else
+    DATE_CMD="date"
+fi
 
 function get_timeslug() {
     $DATE_CMD +"%Y.%m.%d__%Hh%Mm%Ss.%3N"
@@ -117,20 +120,6 @@ function slugify_v3() {
     printf '%s' "$value"
 }
 
-# Determine the best date command for precision
-if command -v gdate >/dev/null 2>&1; then
-    DATE_CMD="gdate"
-else
-    DATE_CMD="date"
-fi
-
-export HOST_IP=$(get_host_ip)
-export HOST_MODEL=$(get_host_model)
-export USER=${USER:-"$(id -un)"}
-export UID
-export GID=$(id -g)
-export PATH="$HOME/.local/bin:/data/docker/hanoi_it/bin:$PATH"
-export MAVEN_MIRROR="http://${HOST_IP}:8888/repository/maven-public"
 
 # -----------------------------------
 #              args
@@ -143,34 +132,10 @@ function parse_args() {
   while [[ $# -gt 0 ]]; do
       case $1 in
           --dry)
-              if [[ $2 =~ ^(true|false)$ ]]; then
-                  # --dry true/false
-                  dry="$2"
-                  shift 2
-              elif [[ $2 && ! $2 =~ ^-- ]]; then
-                  # --dry followed by non-flag argument, treat as flag only
-                  dry="true"
-                  shift 1
-              else
-                  # --dry without value or followed by another flag
-                  dry="true"
-                  shift 1
-              fi
+              shift
               ;;
           --live)
-              if [[ $2 =~ ^(true|false)$ ]]; then
-                  # --live true/false
-                  live="$2"
-                  shift 2
-              elif [[ $2 && ! $2 =~ ^-- ]]; then
-                  # --live followed by non-flag argument, treat as flag only
-                  live="true"
-                  shift 1
-              else
-                  # --live without value or followed by another flag
-                  live="true"
-                  shift 1
-              fi
+              shift
               ;;
           --config)
               if [[ -z "$2" || "$2" =~ ^-- ]]; then
@@ -179,7 +144,8 @@ function parse_args() {
               fi
               local config_file="$2"
               if [[ -f "$config_file" ]]; then
-                  source "$config_file"
+                    # shellcheck disable=SC1090
+                    source "$config_file"
               else
                   echo "Error: Config file '$config_file' not found" >&2
                   return 1
@@ -288,8 +254,8 @@ function accept_all(){
 
     local IP=$1
 
-    sudo iptables -I INPUT  -p tcp -s $IP -j ACCEPT
-    sudo iptables -I OUTPUT -p tcp -d $IP -j ACCEPT
+    sudo iptables -I INPUT  -p tcp -s "$IP" -j ACCEPT
+    sudo iptables -I OUTPUT -p tcp -d "$IP" -j ACCEPT
 }
 
 function list_swap(){
@@ -335,8 +301,10 @@ function rename_easy() {
     # Function to rename a single item
     rename_item() {
         local item="$1"
-        local dirname=$(dirname "$item")
-        local basename=$(basename "$item")
+        local dirname
+        dirname=$(dirname "$item")
+        local basename
+        basename=$(basename "$item")
 
         # Check if basename contains source string
         if [[ "$basename" == *"$source_string"* ]]; then
@@ -345,8 +313,7 @@ function rename_easy() {
 
             log_info "src:" "$item"
             log_info "tgt:" "$new_path"
-            mv "$item" "$new_path"
-            if [ $? -eq 0 ]; then
+            if mv "$item" "$new_path"; then
                 log_ok "✓ OK"
             else
                 log_error "✗ FAILED"
@@ -370,8 +337,10 @@ function rename_easy() {
     done
 
     # Finally, rename the input directory itself if it contains source string
-    local input_dirname=$(dirname "$input_dir")
-    local input_basename=$(basename "$input_dir")
+    local input_dirname
+    input_dirname=$(dirname "$input_dir")
+    local input_basename
+    input_basename=$(basename "$input_dir")
 
     if [[ "$input_basename" == *"$source_string"* ]]; then
         local new_input_basename="${input_basename//$source_string/$target_string}"
@@ -379,8 +348,7 @@ function rename_easy() {
 
         log_info "src:" "$input_dir"
         log_info "tgt:" "$new_input_dir"
-        mv "$input_dir" "$new_input_dir"
-        if [ $? -eq 0 ]; then
+        if mv "$input_dir" "$new_input_dir"; then
             log_ok "✓ OK"
         else
             log_error "✗ FAILED"
@@ -390,4 +358,8 @@ function rename_easy() {
 }
 
 
-
+HOST_IP=$(get_host_ip)
+export HOST_IP
+HOST_MODEL=$(get_host_model)
+export HOST_MODEL
+export USER=${USER:-"$(id -un)"}
