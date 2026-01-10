@@ -8,16 +8,17 @@ function is_docker_container() {
     # Check if PID 1 is NOT init/systemd
     local pid1_cmd=$(ps -p 1 -o comm= 2>/dev/null | tr -d ' ')
 
-    if [[ "$pid1_cmd" != "init" && "$pid1_cmd" != "systemd"  && "$pid1_cmd" != "/sbin/launchd" ]]; then
-        return 0  # true - likely in container
+    if [[ "$pid1_cmd" != "init" && "$pid1_cmd" != "systemd" && "$pid1_cmd" != "/sbin/launchd" ]]; then
+        return 0 # true - likely in container
     else
-        return 1  # false - likely on host
+        return 1 # false - likely on host
     fi
 }
 
-if is_docker_container;
-then TERMINAL_ID="docker"
-else TERMINAL_ID="native"
+if is_docker_container; then
+    TERMINAL_ID="docker"
+else
+    TERMINAL_ID="native"
 fi
 
 if [[ "$TERMINAL_ID" == "native" ]]; then
@@ -34,7 +35,6 @@ elif [[ "$TERMINAL_ID" == "docker" ]]; then
     PS_COLOR_1="$ANSIFmt__cyan"
     PS_COLOR_2="$ANSIFmt__bright_blue"
 fi
-
 
 function get_git_branch_tag() {
     [[ "$PWD" == /mnt/* ]] && return
@@ -56,7 +56,6 @@ function get_git_branch_tag() {
     fi
 }
 
-
 function get_subbranch_tag() {
     if [[ -s "$PWD/configs" ]]; then
         subbranch_tag="$(readlink -f "$PWD/configs")"
@@ -65,7 +64,7 @@ function get_subbranch_tag() {
     fi
 
     if [[ -s "$PWD/voice2text._checkout_.yml" ]]; then
-        f_checkout_basename="$(basename "$(readlink  -f "$PWD/voice2text._checkout_.yml")")"
+        f_checkout_basename="$(basename "$(readlink -f "$PWD/voice2text._checkout_.yml")")"
         f_checkout_basename="${f_checkout_basename#voice2text._checkout_.}"
         f_checkout_basename="${f_checkout_basename%.yml}"
         echo -n " (server:${f_checkout_basename})"

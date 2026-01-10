@@ -7,8 +7,8 @@ function set_brew_envs() {
 
     local brew_path=""
     if [ "$(uname)" = "Darwin" ]; then
-        brew_path="/usr/local/bin/brew"  # Intel macOS
-        [ -f "/opt/homebrew/bin/brew" ] && brew_path="/opt/homebrew/bin/brew"  # Apple Silicon
+        brew_path="/usr/local/bin/brew"                                       # Intel macOS
+        [ -f "/opt/homebrew/bin/brew" ] && brew_path="/opt/homebrew/bin/brew" # Apple Silicon
     else
         brew_path="/home/linuxbrew/.linuxbrew/bin/brew"
     fi

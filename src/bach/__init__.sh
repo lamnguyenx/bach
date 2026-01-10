@@ -33,6 +33,11 @@ source_modules() {
     for module in "${PROJECT_MODULES[@]}"; do
         source "$bach_dir/$module"
     done
+
+    # Conditionally source fzf_tools if fzf shell integration is loaded
+    if type -t __fzfcmd >/dev/null 2>&1; then
+        source "$bach_dir/fzf_tools.sh"
+    fi
 }
 
 # Initial module loading

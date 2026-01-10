@@ -42,7 +42,7 @@ function echo_center() {
 }
 
 function echo_green() { printf "$ANSIFmt__green$*$ANSIFmt__reset\n"; }
-function echo_red()   { printf "$ANSIFmt__red$*$ANSIFmt__reset\n"; }
+function echo_red() { printf "$ANSIFmt__red$*$ANSIFmt__reset\n"; }
 
 # -----------------------------------
 #            core functions
@@ -100,15 +100,15 @@ func="$1"
 shift
 
 case "$func" in
-    archive)
-        archive "$@"
-        ;;
-    echo_banner)
-        echo_banner "$@"
-        ;;
-    *)
-        echo "Error: Unknown function '$func'"
-        usage
-        exit 1
-        ;;
+archive)
+    archive "$@"
+    ;;
+echo_banner)
+    echo_banner "$@"
+    ;;
+*)
+    echo "Error: Unknown function '$func'"
+    usage
+    exit 1
+    ;;
 esac

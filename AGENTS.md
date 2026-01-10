@@ -11,3 +11,5 @@
 
 ## Code Style
 See `coding_conventions/` for detailed style guidelines
+
+- Shell scripts are formatted using `shfmt -i 4` (using 4 spaces for indentation). To format inplace, use `shfmt -i 4 -w`.

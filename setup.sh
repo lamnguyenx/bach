@@ -42,8 +42,8 @@ source \"$BACH_INIT_PATH\"
         echo "Removed existing bach block"
     fi
     # Add new block at the end
-    echo "" >> ~/.bashrc
-    echo "$BACH_BLOCK" >> ~/.bashrc
+    echo "" >>~/.bashrc
+    echo "$BACH_BLOCK" >>~/.bashrc
     echo "Added bach block"
 
     echo "✅ bach installed successfully! Restart your shell or run 'source ~/.bashrc' to apply changes."
@@ -68,7 +68,7 @@ case "$ACTION" in
 install)
     install_bach
     ;;
-uninstall|clean|remove)
+uninstall | clean | remove)
     uninstall_bach
     ;;
 *)

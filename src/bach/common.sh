@@ -120,56 +120,55 @@ function slugify_v3() {
     printf '%s' "$value"
 }
 
-
 # -----------------------------------
 #              args
 # -----------------------------------
 
 function parse_args() {
-  local -a remaining_args=()
+    local -a remaining_args=()
 
-  # Process all arguments
-  while [[ $# -gt 0 ]]; do
-      case $1 in
-          --dry)
-              shift
-              ;;
-          --live)
-              shift
-              ;;
-          --config)
-              if [[ -z "$2" || "$2" =~ ^-- ]]; then
-                  echo "Error: --config requires a filename" >&2
-                  return 1
-              fi
-              local config_file="$2"
-              if [[ -f "$config_file" ]]; then
-                    # shellcheck disable=SC1090
-                    source "$config_file"
-              else
-                  echo "Error: Config file '$config_file' not found" >&2
-                  return 1
-              fi
-              shift 2
-              ;;
-          --help|-h)
-              return 1  # This will trigger help display in main function
-              ;;
-          --*)
-              echo "Error: Unknown option $1" >&2
-              return 1
-              ;;
-          *)
-              # Positional argument - save it
-              remaining_args+=("$1")
-              shift 1
-              ;;
-      esac
-  done
+    # Process all arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+        --dry)
+            shift
+            ;;
+        --live)
+            shift
+            ;;
+        --config)
+            if [[ -z "$2" || "$2" =~ ^-- ]]; then
+                echo "Error: --config requires a filename" >&2
+                return 1
+            fi
+            local config_file="$2"
+            if [[ -f "$config_file" ]]; then
+                # shellcheck disable=SC1090
+                source "$config_file"
+            else
+                echo "Error: Config file '$config_file' not found" >&2
+                return 1
+            fi
+            shift 2
+            ;;
+        --help | -h)
+            return 1 # This will trigger help display in main function
+            ;;
+        --*)
+            echo "Error: Unknown option $1" >&2
+            return 1
+            ;;
+        *)
+            # Positional argument - save it
+            remaining_args+=("$1")
+            shift 1
+            ;;
+        esac
+    done
 
-  # Replace the original arguments with remaining ones
-  set -- "${remaining_args[@]}"
-  return 0
+    # Replace the original arguments with remaining ones
+    set -- "${remaining_args[@]}"
+    return 0
 }
 
 # -----------------------------------
@@ -177,20 +176,20 @@ function parse_args() {
 # -----------------------------------
 
 function urlencode() {
-  local string="$1"
-  local strlen=${#string}
-  local encoded=""
-  local pos c o
+    local string="$1"
+    local strlen=${#string}
+    local encoded=""
+    local pos c o
 
-  for (( pos=0 ; pos<strlen ; pos++ )); do
-     c=${string:$pos:1}
-     case "$c" in
-        [-_.~a-zA-Z0-9] ) o="${c}" ;;
-        * )               printf -v o '%%%02x' "'$c"
-     esac
-     encoded+="${o}"
-  done
-  echo "${encoded}"
+    for ((pos = 0; pos < strlen; pos++)); do
+        c=${string:$pos:1}
+        case "$c" in
+        [-_.~a-zA-Z0-9]) o="${c}" ;;
+        *) printf -v o '%%%02x' "'$c" ;;
+        esac
+        encoded+="${o}"
+    done
+    echo "${encoded}"
 }
 
 function unset_proxy() {
@@ -209,14 +208,14 @@ function unset_proxy() {
 
 function remove_proxy() { unset_proxy; }
 
-
-
 function set_legacy_proxy() {
     unset_proxy
     # legacy proxy, used to install pip, conda packages
     # more restricted that s5 proxy, but might useful on CI/CD servers
-    export http{,s}_proxy="http://$(get_host_ip):7126"
-    export HTTP{,S}_PROXY="http://$(get_host_ip):7126"
+    export http_proxy="http://$(get_host_ip):7126"
+    export https_proxy="http://$(get_host_ip):7126"
+    export HTTP_PROXY="http://$(get_host_ip):7126"
+    export HTTPS_PROXY="http://$(get_host_ip):7126"
     export NO_PROXY="localhost,127.0.0.1,0.0.0.0,.local,.internal,.sslip.io"
 
     print_proxy
@@ -246,7 +245,7 @@ function print_proxy() {
     echo "+---------------------+"
 }
 
-function accept_all(){
+function accept_all() {
     if [ "$(uname)" != "Linux" ]; then
         echo "accept_all (iptables) is only available on Linux systems"
         return 1
@@ -254,22 +253,21 @@ function accept_all(){
 
     local IP=$1
 
-    sudo iptables -I INPUT  -p tcp -s "$IP" -j ACCEPT
+    sudo iptables -I INPUT -p tcp -s "$IP" -j ACCEPT
     sudo iptables -I OUTPUT -p tcp -d "$IP" -j ACCEPT
 }
 
-function list_swap(){
+function list_swap() {
     if [ "$(uname)" != "Linux" ]; then
         echo "list_swap is only available on Linux systems"
         return 1
     fi
-    find /proc -maxdepth 2 -path "/proc/[0-9]*/status" -readable -exec awk -v FS=":" '{process[$1]=$2;sub(/^[ \t]+/,"",process[$1]);} END {if(process["VmSwap"] && process["VmSwap"] != "0 kB") printf "%10s %-30s %20s\n",process["Pid"],process["Name"],process["VmSwap"]}' '{}' \; \
-        | awk '{print $(NF-1),$0}' \
-        | sort -h \
-        | cut -d " " -f2-
+    find /proc -maxdepth 2 -path "/proc/[0-9]*/status" -readable -exec awk -v FS=":" '{process[$1]=$2;sub(/^[ \t]+/,"",process[$1]);} END {if(process["VmSwap"] && process["VmSwap"] != "0 kB") printf "%10s %-30s %20s\n",process["Pid"],process["Name"],process["VmSwap"]}' '{}' \; |
+        awk '{print $(NF-1),$0}' |
+        sort -h |
+        cut -d " " -f2-
 
 }
-
 
 function rename_easy() {
     local input_dir="$1"
@@ -323,18 +321,18 @@ function rename_easy() {
 
     # Process files first (depth-first approach)
     # Find all files and sort by depth (deepest first)
-    find "$input_dir" -type f -name "*$source_string*" | \
-    awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2- | \
-    while IFS= read -r file; do
-        [ -e "$file" ] && rename_item "$file"
-    done
+    find "$input_dir" -type f -name "*$source_string*" |
+        awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2- |
+        while IFS= read -r file; do
+            [ -e "$file" ] && rename_item "$file"
+        done
 
     # Process directories (deepest first to avoid path issues)
-    find "$input_dir" -type d -name "*$source_string*" | \
-    awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2- | \
-    while IFS= read -r dir; do
-        [ -d "$dir" ] && rename_item "$dir"
-    done
+    find "$input_dir" -type d -name "*$source_string*" |
+        awk '{print length($0), $0}' | sort -rn | cut -d' ' -f2- |
+        while IFS= read -r dir; do
+            [ -d "$dir" ] && rename_item "$dir"
+        done
 
     # Finally, rename the input directory itself if it contains source string
     local input_dirname
@@ -356,7 +354,6 @@ function rename_easy() {
     fi
 
 }
-
 
 HOST_IP=$(get_host_ip)
 export HOST_IP

@@ -120,11 +120,6 @@ function docker_compose_operation() {
     fi
 }
 
-
-
-
-
-
 # -----------------------------------
 #         utility functions
 # -----------------------------------
@@ -194,9 +189,9 @@ function dcl() {
 # -----------------------------------
 
 function hotloadl() {
-    $DC kill "$@" && \
-    $DC up -d --no-deps --force-recreate "$@" && \
-    $DC logs --no-log-prefix -f --tail 100 "$@"
+    $DC kill "$@" &&
+        $DC up -d --no-deps --force-recreate "$@" &&
+        $DC logs --no-log-prefix -f --tail 100 "$@"
 }
 
 function hotload() {
@@ -213,9 +208,9 @@ function hotload() {
     log_info "🔄 Restarting services: ${FILTERED_SERVICES[*]}"
 
     # Restart the matched services
-    docker_compose_operation "Killing services" kill "${FILTERED_SERVICES[@]}" && \
-    docker_compose_operation "Starting services" up -d --no-deps --force-recreate "${FILTERED_SERVICES[@]}" && \
-    docker_compose_operation "Following logs" logs -f "${FILTERED_SERVICES[@]}"
+    docker_compose_operation "Killing services" kill "${FILTERED_SERVICES[@]}" &&
+        docker_compose_operation "Starting services" up -d --no-deps --force-recreate "${FILTERED_SERVICES[@]}" &&
+        docker_compose_operation "Following logs" logs -f "${FILTERED_SERVICES[@]}"
 }
 
 function coldload() {
@@ -232,8 +227,8 @@ function coldload() {
     log_info "🚀 Starting services: ${FILTERED_SERVICES[*]}"
 
     # Start the matched services
-    docker_compose_operation "Starting services" up -d "${FILTERED_SERVICES[@]}" && \
-    docker_compose_operation "Following logs" logs -f "${FILTERED_SERVICES[@]}"
+    docker_compose_operation "Starting services" up -d "${FILTERED_SERVICES[@]}" &&
+        docker_compose_operation "Following logs" logs -f "${FILTERED_SERVICES[@]}"
 }
 
 function hotkill() {
@@ -250,7 +245,6 @@ function hotkill() {
     docker_compose_operation "Killing services" kill "${FILTERED_SERVICES[@]}"
 }
 
-
 function hotlogs() {
     # Follow logs for docker-compose services with pattern matching
     # Args: patterns to match service names (optional - matches all if none provided)
@@ -265,9 +259,6 @@ function hotlogs() {
     log_info "📋 Following logs for services: ${FILTERED_SERVICES[*]}"
     docker_compose_operation "Following logs" logs -f --tail 500 "${FILTERED_SERVICES[@]}"
 }
-
-
-
 
 function send_docker_image_via_pipe() {
     # Send a docker image to a remote server via SSH pipe
@@ -305,7 +296,6 @@ function send_docker_image_via_pipe() {
     fi
 }
 
-
 # -----------------------------------
 #         image operations
 # -----------------------------------
@@ -328,15 +318,15 @@ function get_dockerfile_content_legacy() {
     fi
 
     local image="$1"
-    docker history --no-trunc "$image" \
-        | sed '1!G;h;$!d' \
-        | tr -s ' ' \
-        | cut -d " " -f 5- \
-        | sed 's,^/bin/sh -c #(nop) ,,g' \
-        | sed 's,^/bin/sh -c,RUN,g' \
-        | sed 's, && ,\n  & ,g' \
-        | sed 's,\s*[0-9]*[\.]*[0-9]*\s*[kMG]*B\s*$,,g' \
-        | sed '$d'
+    docker history --no-trunc "$image" |
+        sed '1!G;h;$!d' |
+        tr -s ' ' |
+        cut -d " " -f 5- |
+        sed 's,^/bin/sh -c #(nop) ,,g' |
+        sed 's,^/bin/sh -c,RUN,g' |
+        sed 's, && ,\n  & ,g' |
+        sed 's,\s*[0-9]*[\.]*[0-9]*\s*[kMG]*B\s*$,,g' |
+        sed '$d'
 }
 
 function docker_save() {
@@ -361,7 +351,7 @@ function docker_save() {
     log_info "💾 Saving docker image '$image_name' to '$tar_file'..."
 
     # Save the image to tar file
-    if docker save "$image_name" > "$tar_file"; then
+    if docker save "$image_name" >"$tar_file"; then
         local file_size=$(du -h "$tar_file" | cut -f1)
         log_ok "✅ Successfully saved '$image_name' to '$tar_file' ($file_size)"
     else
@@ -392,7 +382,7 @@ function docker_savez() {
     log_info "📦 Saving and compressing docker image '$image_name' to '$tar_gz_file'..."
 
     # Save the image to compressed tar.gz file
-    if docker save "$image_name" | gzip > "$tar_gz_file"; then
+    if docker save "$image_name" | gzip >"$tar_gz_file"; then
         local file_size=$(du -h "$tar_gz_file" | cut -f1)
         log_ok "✅ Successfully saved and compressed '$image_name' to '$tar_gz_file' ($file_size)"
     else
@@ -488,26 +478,24 @@ function dc_replace_tag() {
         fi
 
         case $arg in
-            --dry)
-                if [[ ${original_args[*]} =~ --dry[[:space:]]+(true|false) ]]; then
-                    skip_next=true
-                fi
-                ;;
-            --live)
-                if [[ ${original_args[*]} =~ --live[[:space:]]+(true|false) ]]; then
-                    skip_next=true
-                fi
-                ;;
-            --config)
+        --dry)
+            if [[ ${original_args[*]} =~ --dry[[:space:]]+(true|false) ]]; then
                 skip_next=true
-                ;;
-            --help|-h)
-                ;;
-            --*)
-                ;;
-            *)
-                positional_args+=("$arg")
-                ;;
+            fi
+            ;;
+        --live)
+            if [[ ${original_args[*]} =~ --live[[:space:]]+(true|false) ]]; then
+                skip_next=true
+            fi
+            ;;
+        --config)
+            skip_next=true
+            ;;
+        --help | -h) ;;
+        --*) ;;
+        *)
+            positional_args+=("$arg")
+            ;;
         esac
     done
 
@@ -536,21 +524,21 @@ function dc_replace_tag() {
     local images_list=""
     if [ "$live" = "true" ]; then
         echo "=== Checking running services ==="
-        images_list=$(docker-compose $profile_flag ps --format "table {{.Service}}\t{{.Image}}" \
-            | tail -n +2)
+        images_list=$(docker-compose $profile_flag ps --format "table {{.Service}}\t{{.Image}}" |
+            tail -n +2)
     else
         echo "=== Checking all configured services ==="
-        images_list=$(docker-compose $profile_flag config \
-            | grep -E '^\s*image:' \
-            | sed 's/.*image: //' \
-            | sort \
-            | uniq \
-            | awk '{print "service\t" $0}')
+        images_list=$(docker-compose $profile_flag config |
+            grep -E '^\s*image:' |
+            sed 's/.*image: //' |
+            sort |
+            uniq |
+            awk '{print "service\t" $0}')
     fi
 
     # Filter images that contain the source string
-    local matching_images=$(echo "$images_list" \
-        | grep "$source_string")
+    local matching_images=$(echo "$images_list" |
+        grep "$source_string")
 
     if [ -z "$matching_images" ]; then
         log_info "ℹ️ No images found containing: $source_string"
@@ -564,8 +552,8 @@ function dc_replace_tag() {
     echo "--------------------------------------------------------------"
     echo ""
     echo "=== Docker tag commands that would be executed ==="
-    echo "$matching_images" \
-        | while read service_name image_name; do
+    echo "$matching_images" |
+        while read service_name image_name; do
             local new_image_name=$(echo "$image_name" | sed "s|${source_string}|${target_string}|g")
             echo "    docker tag \\"
             echo "        $image_name \\"
@@ -596,8 +584,8 @@ function dc_replace_tag() {
     local success_count=0
     local total_count=0
 
-    echo "$matching_images" \
-        | while read service_name image_name; do
+    echo "$matching_images" |
+        while read service_name image_name; do
             local new_image_name=$(echo "$image_name" | sed "s|${source_string}|${target_string}|g")
             total_count=$((total_count + 1))
 

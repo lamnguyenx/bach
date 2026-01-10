@@ -811,3 +811,15 @@ function git_ls_large_objects() {
         git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' |
         sort -k3 -n -r
 }
+
+function git_ls_ignored_files() {
+    # List ignored directories in the git repository
+    # Shows directories that are ignored by .gitignore and not tracked by git
+    git ls-files --others --ignored --exclude-standard
+}
+
+function git_ls_ignored_directories() {
+    # List ignored directories in the git repository
+    # Shows directories that are ignored by .gitignore and not tracked by git
+    git ls-files --others --ignored --exclude-standard --directory
+}

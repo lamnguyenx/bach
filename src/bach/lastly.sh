@@ -54,24 +54,11 @@ fi
 alias ap="set_pp_proxy && amp"
 alias cl="set_pp_proxy && claude --verbose"
 
-if command -v fzf > /dev/null 2>&1; then
-    [ -n "$BASH_VERSION" ] && source <(fzf --bash)
-    [ -n "$ZSH_VERSION" ] && source <(fzf --zsh)
-fi
-
 export EDITOR="code --wait"
 
 alias ggx="cd /data/cheese/git/lamnguyenx"
 alias gg5="cd /data/cheese/git/lamnt45"
 alias tmux='tmux attach || tmux new'
-
-if command -v afplay &>/dev/null; then
-    alias noti="(afplay /System/Library/Sounds/Submarine.aiff &>/dev/null &)"
-elif command -v paplay &>/dev/null; then
-    alias noti="(paplay /usr/share/sounds/freedesktop/stereo/complete.oga &>/dev/null &)"
-elif command -v aplay &>/dev/null; then
-    alias noti="(aplay /usr/share/sounds/alsa/Front_Center.wav &>/dev/null &)"
-fi
 
 export ORIGIN_DIR="$PWD"
 function cd() {
@@ -84,7 +71,6 @@ function cd() {
 
 # Save OLDPWD on exit for cd -
 trap 'if [ -n "$OLDPWD" ] && [ -d "$OLDPWD" ]; then echo "$OLDPWD" > ~/.oldpwd; fi' EXIT
-
 
 # -----------------------------------
 #              aliases
@@ -121,11 +107,11 @@ alias jc="just_commit"
 alias jca="just_commit_all"
 
 if [ "$(uname)" = "Darwin" ]; then
-  alias rs="rsync -havP --stats"
-  alias gdu="gdu-go"
-  alias ln="gln"
+    alias rs="rsync -havP --stats"
+    alias gdu="gdu-go"
+    alias ln="gln"
 else
-  alias rs="rsync -havP --stats --info=progress2"
+    alias rs="rsync -havP --stats --info=progress2"
 fi
 
 alias rc='\
