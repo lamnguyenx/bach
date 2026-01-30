@@ -5,16 +5,16 @@
 # Modularized bash configuration for development environment
 # Sources individual modules for better organization and maintainability
 
-if [ -n "${BACH_SOURCED:-}" ]; then
-    return
-fi
+# if [ -n "${BACH_SOURCED:-}" ]; then
+#     return
+# fi
 
 # Calculate script directory once
 bach_dir="$(dirname "${BASH_SOURCE[0]}")"
 
 # Define module arrays for better maintainability
 CORE_MODULES=("common.sh" "logging.sh")
-APP_MODULES=("docker.sh" "files.sh" "git.sh" "homebrew.sh")
+APP_MODULES=("docker.sh" "files.sh" "git.sh" "homebrew.sh" "android.sh")
 PROJECT_MODULES=("terminal.sh" "lastly.sh")
 
 # Function to source all modules
@@ -42,7 +42,7 @@ source_modules() {
 
 # Initial module loading
 source_modules
-BACH_SOURCED=1
+# BACH_SOURCED=1
 
 # Reload function to reload all modules
 function reload_bach() {

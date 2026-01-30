@@ -56,7 +56,6 @@ function convert_single_rclonelink() {
         log_error "Failed: $linkfile"
     fi
 }
-export -f convert_single_rclonelink
 
 alias rcv="convert_rclonelinks"
 function convert_rclonelinks() {
@@ -71,7 +70,12 @@ function convert_rclonelinks() {
     log_info "Converting .rclonelink files to symlinks in: $target_dir"
 
     # Find all .rclonelink files recursively and process in parallel
-    find "$target_dir" -type f -name "*.rclonelink" | xargs -n1 -P$num_procs bash -c 'convert_single_rclonelink "$1"' _
+    if command -v parallel >/dev/null 2>&1; then
+        find "$target_dir" -type f -name "*.rclonelink" | parallel -j $num_procs convert_single_rclonelink
+    else
+        log_error "GNU parallel not found. Install it with 'brew install parallel' (macOS), 'apt/yum install parallel' (Linux), or 'conda install -c conda-forge parallel' (Conda), or process files individually with convert_single_rclonelink"
+        return 1
+    fi
 
     log_ok "Done!"
 }

@@ -24,10 +24,18 @@ function just_one_tensorboard() {
 
 function just_one_grip() {
     local file="$1"
+    local port="${2:-9419}" # Default to 9419 if no port specified
 
-    pgrep -U $USER -f "$(which grip)" | xargs kill
-    setsid nohup grip "$file" &>~/grip.log &
-    sleep 1 && log_ok "Ran just_one_grip in bg, you can Ctrl + C now" &
+    # Check if grip is installed and get its path
+    local grip_path="$(command -v grip)"
+
+    # Only kill existing grip processes if grip is installed
+    if [[ -n "$grip_path" ]]; then
+        pgrep -U $USER -f "$grip_path" | xargs kill
+    fi
+
+    setsid nohup grip "$file" "0.0.0.0:$port" &>~/grip.log &
+    log_ok "Ran just_one_grip on port $port in bg, you can Ctrl + C now"
     tail -f ~/grip.log
 }
 
