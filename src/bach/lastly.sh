@@ -130,6 +130,14 @@ rclone sync --progress --stats 10s \
   --fast-list \
   -v'
 
+alias rc1='\
+rclone sync --progress --stats 10s \
+  --links \
+  --transfers=1 \
+  --checkers=1 \
+  --fast-list \
+  -v'
+
 export UID
 GID=$(id -g)
 export GID
