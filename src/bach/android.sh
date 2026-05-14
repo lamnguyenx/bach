@@ -841,3 +841,12 @@ function adbfs_reload() {
     echo "📱 Mounting adbfs to $mount_point..."
     adbfs "$mount_point"
 }
+
+# Export public API functions
+export -f get_android_app_name
+export -f termux termux_root
+export -f ahotbuild ahotload ahotload2 awipe adbfs_reload
+
+# Export internal helpers (needed by public functions in subshells)
+export -f _android_select_device _adb _android_hot_core
+export -f _android_get_package_name _android_find_apk

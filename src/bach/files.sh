@@ -156,3 +156,9 @@ function ln_tree() {
     log_ok "Created $success_count/$item_count symlinks in $target_dir"
     return 0
 }
+
+# Export public API functions
+export -f get_md5sum_short archive convert_rclonelinks ln_tree
+
+# Export internal helpers (needed by public functions in subshells)
+export -f convert_single_rclonelink

@@ -141,3 +141,6 @@ rclone sync --progress --stats 10s \
 export UID
 GID=$(id -g)
 export GID
+
+# Export public API functions
+export -f just_one_tensorboard just_one_grip

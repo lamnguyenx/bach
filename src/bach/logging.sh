@@ -175,3 +175,15 @@ function log_warning() { log_yellow "[WARNING] $*" >&2; }
 function log_info() { log "[INFO] $*" >&2; }
 function log_debug() { log_gray "[DEBUG] $*" >&2; }
 function log_ok() { log_green "[OK] $*" >&2; }
+
+# Export public API functions
+export -f strip_colors
+export -f echo_repeat echo_center echo_banner
+export -f echo_red echo_green echo_yellow echo_gray echo_cyan
+export -f echo_bold echo_bold_red echo_bold_green echo_bold_yellow echo_bold_gray echo_bold_cyan
+export -f log_banner
+export -f log log_bold log_red log_green log_yellow log_gray log_cyan
+export -f log_error log_warning log_info log_debug log_ok
+
+# Export internal helpers (needed by public functions in subshells)
+export -f separate_heading log_date log_fill log_gray_simple

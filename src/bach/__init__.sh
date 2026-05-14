@@ -53,3 +53,6 @@ function reload_bach() {
 function reload_bashrc() {
     source ~/.bashrc
 }
+
+# Export public API functions
+export -f reload_bach reload_bashrc

@@ -825,3 +825,15 @@ function git_ls_ignored_directories() {
     # Shows directories that are ignored by .gitignore and not tracked by git
     git ls-files --others --ignored --exclude-standard --directory
 }
+
+# Export public API functions
+export -f gl gl_quick_jump gl_search gl_interactive
+export -f just_commit just_push just_commit_all just_push_all
+export -f find_just_committed_all remove_submodule
+export -f git_ls_large_objects git_ls_ignored_files git_ls_ignored_directories
+export -f git_remember_passwords git_remember_credentials git_trust_current_dir just_amend
+
+# Export internal helpers (needed by public functions in subshells)
+export -f validate_params validate_git_repo change_directory process_submodules_recursive
+export -f gl_collect_all_submodules gl_find_submodules_recursive gl_display_by_levels
+export -f just_commit_push

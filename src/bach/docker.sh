@@ -606,3 +606,14 @@ function dc_replace_tag() {
     echo "2. Push new tags: docker push <new_image_name>"
     echo "3. Update services: docker-compose pull && docker-compose up -d"
 }
+
+# Export public API functions
+export -f enter dcl hotloadl hotload coldload hotkill hotlogs
+export -f send_docker_image_via_pipe
+export -f get_dockerfile_content get_dockerfile_content_legacy
+export -f docker_save docker_savez docker_loadz
+export -f dc_replace_tag
+
+# Export internal helpers (needed by public functions in subshells)
+export -f validate_params filter_docker_services docker_compose_operation
+export -f slugify_docker validate_docker_image_for_extraction

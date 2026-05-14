@@ -79,25 +79,6 @@ function slugify_v2() {
     # Strip leading and trailing whitespace
     value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 
-    # Replace multiple consecutive hyphens/spaces with single hyphen
-    value=$(printf '%s' "$value" | tr -s '[:space:]-' '-')
-
-    printf '%s' "$value"
-}
-
-function slugify_v2() {
-    local value="$1"
-
-    # Remove non-ASCII characters (similar to Python's encode('ascii', 'ignore'))
-    # Use tr to delete non-ASCII characters (0x80-0xFF)
-    value=$(printf '%s' "$value" | LC_ALL=C tr -d '\200-\377')
-
-    # Remove characters that are not dots, word characters, spaces, or hyphens
-    value=$(printf '%s' "$value" | sed 's/[^.[:alnum:]_[:space:]-]//g')
-
-    # Strip leading and trailing whitespace
-    value=$(printf '%s' "$value" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-
     # Replace multiple hyphens/spaces with single hyphen
     value=$(printf '%s' "$value" | sed 's/[-[:space:]]\{1,\}/-/g')
 
@@ -360,3 +341,10 @@ export HOST_IP
 HOST_MODEL=$(get_host_model)
 export HOST_MODEL
 export USER=${USER:-"$(id -un)"}
+
+# Export public API functions
+export -f get_host_ip get_host_model get_timeslug
+export -f slugify slugify_v2 slugify_v3
+export -f parse_args urlencode
+export -f unset_proxy remove_proxy set_legacy_proxy print_proxy
+export -f accept_all list_swap rename_easy

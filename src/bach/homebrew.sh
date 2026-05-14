@@ -36,3 +36,6 @@ function remove_brew_envs() {
         echo "⚠️  No backup PATH found"
     fi
 }
+
+# Export public API functions
+export -f set_brew_envs remove_brew_envs
