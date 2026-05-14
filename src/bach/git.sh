@@ -118,7 +118,9 @@ function just_commit_push() {
 }
 
 function just_amend() {
-    git add .
+    local target="${1:-.}"
+	git reset .
+    git add "$target"
     git commit --amend --no-edit
 }
 
