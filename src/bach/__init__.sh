@@ -14,7 +14,7 @@ bach_dir="$(dirname "${BASH_SOURCE[0]}")"
 
 # Define module arrays for better maintainability
 CORE_MODULES=("common.sh" "logging.sh")
-APP_MODULES=("docker.sh" "files.sh" "git.sh" "homebrew.sh" "android.sh")
+APP_MODULES=("docker.sh" "files.sh" "git.sh" "homebrew.sh" "android.sh" "ssh.sh")
 PROJECT_MODULES=("terminal.sh" "lastly.sh")
 
 # Function to source all modules
