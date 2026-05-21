@@ -122,21 +122,21 @@ else
     alias rs="rsync -havP --stats --info=progress2"
 fi
 
-alias rc='\
+alias rc="\
 rclone sync --progress --stats 10s \
-  --links \
-  --transfers=8 \
-  --checkers=8 \
-  --fast-list \
-  -v'
+--links \
+--transfers=8 \
+--checkers=8 \
+--fast-list \
+-v "
 
-alias rc1='\
+alias rc1="\
 rclone sync --progress --stats 10s \
-  --links \
-  --transfers=1 \
-  --checkers=1 \
-  --fast-list \
-  -v'
+--links \
+--transfers=1 \
+--checkers=1 \
+--fast-list \
+-v "
 
 export UID
 GID=$(id -g)

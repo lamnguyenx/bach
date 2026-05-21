@@ -153,7 +153,7 @@ function _adb() {
     fi
 }
 
-function termux() {
+function atermux() {
     local serial=""
     local cmd_args=()
 
@@ -165,7 +165,7 @@ function termux() {
             shift 2
             ;;
         --help | -h)
-            echo "Usage: termux [-s serial] [-- command ...]"
+            echo "Usage: atermux [-s serial] [-- command ...]"
             echo ""
             echo "  -s serial       Target specific device serial"
             echo "  -- command ...  Execute command in Termux (default: interactive shell)"
@@ -173,8 +173,8 @@ function termux() {
             echo "Opens a Termux shell on the device, or runs a command."
             echo ""
             echo "Examples:"
-            echo "  termux                    # Interactive shell"
-            echo "  termux -- pkg install htop # Run pkg install htop"
+            echo "  atermux                    # Interactive shell"
+            echo "  atermux -- pkg install htop # Run pkg install htop"
             return 0
             ;;
         --)
@@ -844,7 +844,7 @@ function adbfs_reload() {
 
 # Export public API functions
 export -f get_android_app_name
-export -f termux termux_root
+export -f atermux termux_root
 export -f ahotbuild ahotload ahotload2 awipe adbfs_reload
 
 # Export internal helpers (needed by public functions in subshells)
