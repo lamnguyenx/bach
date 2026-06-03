@@ -155,6 +155,7 @@ function _adb() {
 
 function atermux() {
     local serial=""
+    local root_mode=false
     local cmd_args=()
 
     # Parse flags and collect command
@@ -164,10 +165,15 @@ function atermux() {
             serial="$2"
             shift 2
             ;;
+        -r | --root)
+            root_mode=true
+            shift
+            ;;
         --help | -h)
-            echo "Usage: atermux [-s serial] [-- command ...]"
+            echo "Usage: atermux [-s serial] [-r] [-- command ...]"
             echo ""
             echo "  -s serial       Target specific device serial"
+            echo "  -r, --root       Run as root (su 0) instead of Termux app user"
             echo "  -- command ...  Execute command in Termux (default: interactive shell)"
             echo ""
             echo "Opens a Termux shell on the device, or runs a command."
@@ -175,6 +181,7 @@ function atermux() {
             echo "Examples:"
             echo "  atermux                    # Interactive shell"
             echo "  atermux -- pkg install htop # Run pkg install htop"
+            echo "  atermux -r                 # Root shell in Termux environment"
             return 0
             ;;
         --)
@@ -236,22 +243,35 @@ function atermux() {
 
     # Check if su is available
     if _adb shell "command -v su >/dev/null 2>&1"; then
-        # Rooted path: switch to app user via su
-        if [[ ${#cmd_args[@]} -eq 0 ]]; then
-            if [[ "$uid" =~ ^[0-9]+$ ]]; then
-                _adb shell -t -t "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
-            else
+        if [[ "$root_mode" == true ]]; then
+            # Root mode: always use su 0
+            if [[ ${#cmd_args[@]} -eq 0 ]]; then
                 _adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
-            fi
-        else
-            if [[ "$uid" =~ ^[0-9]+$ ]]; then
-                _adb shell "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
             else
                 _adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+            fi
+        else
+            # Normal mode: switch to app user via su
+            if [[ ${#cmd_args[@]} -eq 0 ]]; then
+                if [[ "$uid" =~ ^[0-9]+$ ]]; then
+                    _adb shell -t -t "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+                else
+                    _adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+                fi
+            else
+                if [[ "$uid" =~ ^[0-9]+$ ]]; then
+                    _adb shell "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+                else
+                    _adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+                fi
             fi
         fi
     else
         # Non-rooted path: try run-as (only works if app is debuggable)
+        if [[ "$root_mode" == true ]]; then
+            echo "Error: Device is not rooted (su not available). Root mode requires root access." >&2
+            return 1
+        fi
         if _adb shell "run-as com.termux true >/dev/null 2>&1"; then
             if [[ ${#cmd_args[@]} -eq 0 ]]; then
                 _adb shell -t -t "run-as com.termux sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"

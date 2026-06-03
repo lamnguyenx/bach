@@ -10,6 +10,20 @@ Bach provides a lightweight, modular way to manage your bash environment with or
 
 ## Installation
 
+### Python (Recommended)
+
+```bash
+pip install bach-cli
+# or with pipx (preferred for CLI tools)
+pipx install bach-cli
+
+bach install
+```
+
+This will add the bach initialization to your `~/.bashrc`.
+
+### From source
+
 1. Clone the repository:
 
 ```bash
@@ -25,9 +39,38 @@ make install
 
 This will add the bach initialization to your `~/.bashrc`.
 
+## Updating
+
+When a new version is released, run:
+
+```bash
+bach update
+```
+
+This upgrades the package (via `pip` or `pipx`) and reinstalls the shell scripts in one step.
+
+Or manually:
+
+```bash
+pip install --upgrade bach-cli
+# or with pipx
+pipx upgrade bach-cli
+
+bach install
+```
+
 ## Usage
 
 After installation, restart your shell or run `source ~/.bashrc` to load the configuration.
+
+Available commands:
+- `bach install` — Install bach configuration (with shell completion)
+- `bach uninstall` — Remove bach configuration
+- `bach update` — Upgrade package and reinstall configuration
+- `bach reload` — Show how to reload configuration in current shell
+- `bach clean` — Alias for uninstall
+
+**Shell completion** (bash) is automatically enabled during `bach install`. It requires bash 4.4+ — if you're on macOS with the default bash 3.2, install a newer bash via `brew install bash` to use completions.
 
 Available modules:
 - `common.sh`: Common utilities
@@ -39,7 +82,7 @@ Available modules:
 - `terminal.sh`: Terminal setup
 - `lastly.sh`: Final configurations
 
-To reload modules: `reload_bach`
+To reload modules in the current shell: `reload_bash` or `source ~/.bashrc`
 
 ## Linting
 
@@ -53,6 +96,14 @@ For VSCode users, install the Bash IDE extension (`mads-hartmann.bash-ide-vscode
 
 ## Uninstallation
 
+### Python
+
+```bash
+bach uninstall
+```
+
+### From source
+
 ```bash
 make clean
 ```
@@ -61,8 +112,10 @@ Or manually: `bash setup.sh uninstall`
 
 ## Structure
 
-- `src/bach/`: Module files
-- `setup.sh`: Installation script
+- `bach_cli/`: Python package (CLI entry point)
+- `src/bach/`: Module files (shell scripts)
+- `setup.sh`: Installation script (legacy)
 - `bach_lite.sh`: Lightweight utility script
-- `Makefile`: Build/install targets
+- `Makefile`: Build/install targets (legacy)
+- `pyproject.toml`: Poetry / Python packaging configuration
 

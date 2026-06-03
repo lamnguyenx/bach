@@ -157,8 +157,33 @@ function ln_tree() {
     return 0
 }
 
+function merge_cat() {
+    if [[ $# -eq 0 ]]; then
+        log_error "Usage: merge_cat file1 file2 ... > output.md"
+        return 1
+    fi
+
+    local first=1
+    for file in "$@"; do
+        if [[ ! -f "$file" ]]; then
+            log_error "File not found: $file"
+            return 1
+        fi
+
+        if [[ $first -eq 0 ]]; then
+			printf "\n--------------------------------------------------------------"
+			printf "\n--------------------------------------------------------------"
+			printf "\n--------------------------------------------------------------"
+            printf "\n\n"
+        fi
+        first=0
+
+        cat "$file"
+    done
+}
+
 # Export public API functions
-export -f get_md5sum_short archive convert_rclonelinks ln_tree
+export -f get_md5sum_short archive convert_rclonelinks ln_tree merge_cat
 
 # Export internal helpers (needed by public functions in subshells)
 export -f convert_single_rclonelink

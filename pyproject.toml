@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "bach-cli"
+version = "2026.06.03.05"
+description = "Modularized bash configuration for development environment"
+authors = ["Bach Team <bach@example.com>"]
+readme = "README.md"
+packages = [{include = "bach_cli"}]
+include = [
+    "bach_cli/bach/**/*",
+    "bach_cli/bach_lite.sh",
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+click = "^8.0"
+
+[tool.poetry.scripts]
+bach = "bach_cli.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
