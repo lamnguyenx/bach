@@ -71,6 +71,22 @@ function get_subbranch_tag() {
     fi
 }
 
+function get_jobs_indicator() {
+    local jobs_output=$(jobs)
+    local running_jobs=$(echo "$jobs_output" | grep -c 'Running' | tr -d ' ')
+    local stopped_jobs=$(echo "$jobs_output" | grep -c 'Stopped' | tr -d ' ')
+    local output=""
+
+    if [[ "$running_jobs" -gt 0 ]]; then
+        output=" ⚙${running_jobs}"
+    fi
+    if [[ "$stopped_jobs" -gt 0 ]]; then
+        output="${output} ⏸${stopped_jobs}"
+    fi
+
+    echo "$output"
+}
+
 function get_proxy_indicator() {
     local proxies=""
     if [[ -n "${http_proxy:-}" || -n "${HTTP_PROXY:-}" ]]; then
@@ -96,4 +112,4 @@ ${debian_chroot:+($debian_chroot)}\
 \[$PS_COLOR_1\[${debian_chroot:+($debian_chroot)}\
 ${HOST_ID}$ANSIFmt__reset \
 ($TERMINAL_ID) \[$PS_COLOR_2\[\
-\$PWD$ANSIFmt__reset\$(get_git_branch_tag)\$(get_subbranch_tag)\n>> "
+\$PWD$ANSIFmt__reset\$(get_git_branch_tag)\$(get_subbranch_tag)\$(get_jobs_indicator)\n>> "

@@ -67,6 +67,56 @@ def _remove_bach_block():
     print("Removed bach block from ~/.bashrc")
 
 
+def _sync_scripts():
+    """Sync shell scripts from package to BACH_HOME.
+
+    Returns True if scripts were synced, False otherwise.
+    """
+    scripts_path = _get_scripts_path()
+    bach_init_source = scripts_path / "__init__.sh"
+
+    if not bach_init_source.exists():
+        return False
+
+    if not BACH_HOME.exists():
+        return False
+
+    # Check if any script file differs from the installed version
+    needs_sync = False
+    for item in scripts_path.iterdir():
+        dest = BACH_HOME / item.name
+        if item.is_dir():
+            # Compare each file in the directory
+            for src_file in item.iterdir():
+                if not src_file.is_file():
+                    continue
+                dest_file = dest / src_file.name
+                if not dest_file.exists() or src_file.read_bytes() != dest_file.read_bytes():
+                    needs_sync = True
+                    break
+        else:
+            if not dest.exists() or item.read_bytes() != dest.read_bytes():
+                needs_sync = True
+                break
+        if needs_sync:
+            break
+
+    if not needs_sync:
+        return False
+
+    # Copy all scripts to BACH_HOME
+    for item in scripts_path.iterdir():
+        dest = BACH_HOME / item.name
+        if item.is_dir():
+            if dest.exists():
+                shutil.rmtree(dest)
+            _copy_package_tree(item, dest)
+        else:
+            (dest).write_bytes(item.read_bytes())
+
+    return True
+
+
 def install():
     """Install bach configuration to ~/.bashrc and copy scripts."""
     scripts_path = _get_scripts_path()
@@ -170,8 +220,31 @@ def update():
     install()
 
 
+def _fix_bashrc_path():
+    """Fix bashrc path if it points to the wrong bach init location."""
+    with open(BASHRC, "r") as f:
+        content = f.read()
+
+    if BACH_BLOCK_START not in content:
+        return False
+
+    correct_path = f'source "{BACH_HOME / "__init__.sh"}"'
+    if correct_path in content:
+        return False
+
+    # Find and replace the old path pattern
+    old_pattern = f'source "{BACH_HOME / "bach" / "__init__.sh"}"'
+    if old_pattern in content:
+        content = content.replace(old_pattern, correct_path)
+        with open(BASHRC, "w") as f:
+            f.write(content)
+        return True
+
+    return False
+
+
 def reload():
-    """Check if bach is installed and tell the user how to reload."""
+    """Check if bach is installed, sync scripts, and tell the user how to reload."""
     if not BASHRC.exists():
         print("~/.bashrc not found.")
         return
@@ -182,6 +255,14 @@ def reload():
     if BACH_BLOCK_START not in content:
         print("⚠️ bach is not installed. Run 'bach install' first.")
         return
+
+    # Fix bashrc path if it points to the wrong location
+    if _fix_bashrc_path():
+        print("✅ Fixed ~/.bashrc path to point to correct bach init.")
+
+    # Sync latest shell scripts from package
+    if _sync_scripts():
+        print("✅ Shell scripts updated to latest version.")
 
     print("✅ bach is installed. To reload your configuration, run:")
     print("   source ~/.bashrc")

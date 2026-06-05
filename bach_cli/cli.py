@@ -3,7 +3,7 @@
 import click
 
 from bach_cli import __version__
-from bach_cli.core import install, reload, uninstall, update
+from bach_cli.core import install, reload, uninstall, update, _sync_scripts
 
 
 @click.group()
@@ -11,6 +11,18 @@ from bach_cli.core import install, reload, uninstall, update
 def cli():
     """Bach - Modularized bash configuration for development environment."""
     pass
+
+
+@cli.result_callback()
+def auto_sync_scripts(result, **kwargs):
+    """Auto-sync shell scripts after every command if they are stale."""
+    # Skip sync for install/uninstall to avoid conflicts
+    ctx = click.get_current_context()
+    if ctx.invoked_subcommand in ("install", "uninstall", "clean"):
+        return
+    if _sync_scripts():
+        print("\n✅ Shell scripts auto-synced to latest version.")
+        print("   Run 'source ~/.bashrc' to apply changes.")
 
 
 @cli.command(name="install")
@@ -27,7 +39,7 @@ def update_cmd():
 
 @cli.command(name="reload")
 def reload_cmd():
-    """Show how to reload bach configuration in the current shell."""
+    """Sync scripts and show how to reload bach configuration."""
     reload()
 
 
