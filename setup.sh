@@ -11,7 +11,7 @@ set -euo pipefail
 # Functions
 get_bach_paths() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    BACH_INIT_PATH="$(cd "$SCRIPT_DIR/src/bach" && pwd)/__init__.sh"
+    BACH_INIT_PATH="$(cd "$SCRIPT_DIR/bach_cli/bach" && pwd)/__init__.sh"
 }
 
 install_bach() {

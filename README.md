@@ -113,7 +113,7 @@ Or manually: `bash setup.sh uninstall`
 ## Structure
 
 - `bach_cli/`: Python package (CLI entry point)
-- `src/bach/`: Module files (shell scripts)
+- `bach_cli/bach/`: Module files (shell scripts)
 - `setup.sh`: Installation script (legacy)
 - `bach_lite.sh`: Lightweight utility script
 - `Makefile`: Build/install targets (legacy)

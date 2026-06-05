@@ -10,7 +10,7 @@ echo "=============================="
 # Source the scripts
 echo "1. Sourcing bach scripts..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../src/bach/__init__.sh" 2>/dev/null || {
+source "$SCRIPT_DIR/../bach_cli/bach/__init__.sh" 2>/dev/null || {
     echo "   ❌ Failed to source bach scripts"
     exit 1
 }
