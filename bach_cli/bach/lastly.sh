@@ -66,7 +66,7 @@ export EDITOR="code --wait"
 
 alias ggx="cd /data/cheese/git/lamnguyenx"
 alias gg5="cd /data/cheese/git/lamnt45"
-alias tmux='tmux attach || tmux new'
+alias tmuxc='tmux attach || tmux new'
 
 export ORIGIN_DIR="$PWD"
 function cd() {
