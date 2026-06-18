@@ -14,7 +14,7 @@ bach_dir="$(dirname "${BASH_SOURCE[0]}")"
 
 # Define module arrays for better maintainability
 CORE_MODULES=("common.sh" "logging.sh")
-APP_MODULES=("docker.sh" "files.sh" "git.sh" "homebrew.sh" "android.sh" "ssh.sh")
+APP_MODULES=("docker.sh" "files.sh" "git.sh" "homebrew.sh" "android.sh" "ssh.sh" "apis.sh")
 PROJECT_MODULES=("terminal.sh" "lastly.sh")
 
 # Function to source all modules
@@ -55,4 +55,4 @@ function reload_bashrc() {
 }
 
 # Export public API functions
-export -f reload_bach reload_bashrc
+export -f source_modules reload_bach reload_bashrc
