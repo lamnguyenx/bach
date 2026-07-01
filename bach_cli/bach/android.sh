@@ -361,11 +361,12 @@ function termux_root() {
 }
 
 # Shared core function for ahotbuild and ahotload
-# Usage: _android_hot_core <project_dir> <do_build>
+# Usage: _android_hot_core <project_dir> <do_build> <serial> <do_follow>
 function _android_hot_core() {
     local project_dir="$1"
     local do_build="$2"
     local serial="$3"
+    local do_follow="$4"
 
     local _ANDROID_SERIAL
     _ANDROID_SERIAL=$(_android_select_device "$serial") || return 1
@@ -486,13 +487,28 @@ function _android_hot_core() {
     echo "🚀 Launching..."
     _adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
-    echo "📋 Tailing logs (package: $package_name)..."
-    _adb logcat -v threadtime | grep "$package_name"
+    if [[ "$do_follow" == true ]]; then
+        echo "📋 Tailing logs (package: $package_name)..."
+        _adb logcat -c 2>/dev/null || true
+        sleep 0.5
+        local pid sys_noise_re
+        pid=$(_adb shell pidof "$package_name" 2>/dev/null | tr -d '\r' | awk '{print $1}')
+        sys_noise_re=' (Adreno\S*|vulkan\S*|TrafficStats|ziparchive|Perf[\t ]'
+        sys_noise_re+='|GraphicsEnvironment|qdgralloc|SnapAlloc|ActivityThread'
+        sys_noise_re+='|nativeloader|TextToSpeech|System\.err|WindowOnBackDispatcher'
+        sys_noise_re+='|VRI\[|WM-WrkMgrInitializer)[\t ]*:'
+        if [[ -n "$pid" ]]; then
+            _adb logcat -v threadtime --pid="$pid" | grep --line-buffered -v -E "$sys_noise_re"
+        else
+            _adb logcat -v threadtime
+        fi
+    fi
 }
 
 function ahotbuild() {
     local project_dir=""
     local serial=""
+    local do_follow=false
 
     # Parse flags
     while [[ $# -gt 0 ]]; do
@@ -501,10 +517,15 @@ function ahotbuild() {
             serial="$2"
             shift 2
             ;;
+        -f)
+            do_follow=true
+            shift
+            ;;
         --help | -h)
-            echo "Usage: ahotbuild [-s serial] [project_dir]"
+            echo "Usage: ahotbuild [-s serial] [-f] [project_dir]"
             echo ""
             echo "  -s serial     Target specific device serial"
+            echo "  -f             Follow (tail) logs after launching"
             echo "  project_dir   Path to Android project root (default: current dir)"
             echo ""
             echo "Builds, installs, and launches the Android app."
@@ -523,12 +544,13 @@ function ahotbuild() {
 
     project_dir="${project_dir:-"$(pwd)"}"
 
-    _android_hot_core "$project_dir" true "$serial"
+    _android_hot_core "$project_dir" true "$serial" "$do_follow"
 }
 
 function ahotload() {
     local project_dir=""
     local serial=""
+    local do_follow=false
 
     # Parse flags
     while [[ $# -gt 0 ]]; do
@@ -537,10 +559,15 @@ function ahotload() {
             serial="$2"
             shift 2
             ;;
+        -f)
+            do_follow=true
+            shift
+            ;;
         --help | -h)
-            echo "Usage: ahotload [-s serial] [project_dir]"
+            echo "Usage: ahotload [-s serial] [-f] [project_dir]"
             echo ""
             echo "  -s serial     Target specific device serial"
+            echo "  -f             Follow (tail) logs after launching"
             echo "  project_dir   Path to Android project root (default: current dir)"
             echo ""
             echo "Skips build, just installs existing APK and launches the app."
@@ -559,7 +586,7 @@ function ahotload() {
 
     project_dir="${project_dir:-"$(pwd)"}"
 
-    _android_hot_core "$project_dir" false "$serial"
+    _android_hot_core "$project_dir" false "$serial" "$do_follow"
 }
 
 function ahotload2() {
@@ -663,10 +690,22 @@ function ahotload2() {
     _adb shell am force-stop "$package_name" 2>/dev/null || true
 
     echo "🚀 Launching..."
+    _adb logcat -c 2>/dev/null || true
     _adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
     echo "📋 Tailing logs (package: $package_name)..."
-    _adb logcat -v threadtime | grep "$package_name"
+    sleep 0.5
+    local pid sys_noise_re
+    pid=$(_adb shell pidof "$package_name" 2>/dev/null | tr -d '\r' | awk '{print $1}')
+    sys_noise_re=' (Adreno\S*|vulkan\S*|TrafficStats|ziparchive|Perf[\t ]'
+    sys_noise_re+='|GraphicsEnvironment|qdgralloc|SnapAlloc|ActivityThread'
+    sys_noise_re+='|nativeloader|TextToSpeech|System\.err|WindowOnBackDispatcher'
+    sys_noise_re+='|VRI\[|WM-WrkMgrInitializer)[\t ]*:'
+    if [[ -n "$pid" ]]; then
+        _adb logcat -v threadtime --pid="$pid" | grep --line-buffered -v -E "$sys_noise_re"
+    else
+        _adb logcat -v threadtime
+    fi
 }
 
 function awipe() {
