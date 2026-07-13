@@ -6,6 +6,7 @@
 ANSIFmt__reset='\033[00m'
 ANSIFmt__bold='\033[01m'
 ANSIFmt__disable='\033[02m'
+ANSIFmt__italic='\033[03m'
 ANSIFmt__underline='\033[04m'
 ANSIFmt__reverse='\033[07m'
 ANSIFmt__strikethrough='\033[09m'

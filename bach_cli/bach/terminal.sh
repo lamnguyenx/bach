@@ -23,17 +23,17 @@ fi
 
 if [[ "$TERMINAL_ID" == "native" ]]; then
     if [[ "$USER" == "root" ]]; then
-        PS_COLOR_1="$ANSIFmt__red"
-        PS_COLOR_2="$ANSIFmt__reset"
+        PS_COLOR_1=$'\033[31m'
+        PS_COLOR_2=$'\033[00m'
 
     else
-        PS_COLOR_1="$ANSIFmt__bright_green"
-        PS_COLOR_2="$ANSIFmt__bright_yellow"
+        PS_COLOR_1=$'\033[00;92m'
+        PS_COLOR_2=$'\033[00;93m'
     fi
 
 elif [[ "$TERMINAL_ID" == "docker" ]]; then
-    PS_COLOR_1="$ANSIFmt__cyan"
-    PS_COLOR_2="$ANSIFmt__bright_blue"
+    PS_COLOR_1=$'\033[00;36m'
+    PS_COLOR_2=$'\033[00;94m'
 fi
 
 function get_git_branch_tag() {
@@ -107,9 +107,10 @@ function get_proxy_indicator() {
 
 export HOST_ID="$USER${HOST_IP:+ @ }${HOST_IP}${HOST_MODEL:+ / }${HOST_MODEL}"
 PS1="\
-(\$(basename "${0#-}")) (\$(date +%T))\[$ANSIFmt__violet\]\$(get_proxy_indicator)\[$ANSIFmt__reset\] \
+\n\
+\[\e[2m\](\$(basename "${0#-}")) (\$(date +%T))\[\e[0m\]\[\e[35m\]\$(get_proxy_indicator)\[\e[0m\] \
 ${debian_chroot:+($debian_chroot)}\
-\[$PS_COLOR_1\[${debian_chroot:+($debian_chroot)}\
-${HOST_ID}$ANSIFmt__reset \
-($TERMINAL_ID) \[$PS_COLOR_2\[\
-\$PWD$ANSIFmt__reset\$(get_git_branch_tag)\$(get_subbranch_tag)\$(get_jobs_indicator)\n>> "
+\[\e[1m\]\[$PS_COLOR_1\]${debian_chroot:+($debian_chroot)}\
+${HOST_ID}\[\e[0m\] \
+\[\e[3m\]($TERMINAL_ID)\[\e[0m\] \[\e[4m\]\[$PS_COLOR_2\]\
+\$PWD\[\e[0m\]\$(get_git_branch_tag)\$(get_subbranch_tag)\$(get_jobs_indicator)\n\[\e[1m\]>> \[\e[0m\]"

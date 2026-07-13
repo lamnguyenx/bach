@@ -367,9 +367,12 @@ function _android_hot_core() {
     local do_build="$2"
     local serial="$3"
     local do_follow="$4"
+    local do_dry_run="${5:-false}"
 
-    local _ANDROID_SERIAL
-    _ANDROID_SERIAL=$(_android_select_device "$serial") || return 1
+    if [[ "$do_dry_run" != true ]]; then
+        local _ANDROID_SERIAL
+        _ANDROID_SERIAL=$(_android_select_device "$serial") || return 1
+    fi
 
     # Resolve project directory
     if [[ ! -d "$project_dir" ]]; then
@@ -437,7 +440,7 @@ function _android_hot_core() {
     echo "📦 Package: $package_name"
 
     # Build (if requested)
-    if [[ "$do_build" == true ]]; then
+    if [[ "$do_build" == true ]] && [[ "$do_dry_run" != true ]]; then
         echo "🔨 Building..."
         local gradle_cmd
         if [[ -x "$project_dir/gradlew" ]]; then
@@ -457,6 +460,16 @@ function _android_hot_core() {
     # Find the APK
     local apk_path
     apk_path=$(_android_find_apk "$project_dir" "$app_module")
+
+    if [[ "$do_dry_run" == true ]]; then
+        if [[ -z "$apk_path" ]] || [[ ! -f "$apk_path" ]]; then
+            echo "📦 APK would be built at: ${project_dir}/${app_module}/build/outputs/apk/debug/"
+            echo "   (no existing APK found - run without --dry-run to build)"
+        else
+            echo "📦 APK: $apk_path"
+        fi
+        return 0
+    fi
 
     if [[ -z "$apk_path" ]] || [[ ! -f "$apk_path" ]]; then
         echo "ERROR: APK not found in ${project_dir}/${app_module}/build/outputs/apk/debug/" >&2
@@ -509,6 +522,7 @@ function ahotbuild() {
     local project_dir=""
     local serial=""
     local do_follow=false
+    local do_dry_run=false
 
     # Parse flags
     while [[ $# -gt 0 ]]; do
@@ -521,11 +535,16 @@ function ahotbuild() {
             do_follow=true
             shift
             ;;
+        -n | --dry-run)
+            do_dry_run=true
+            shift
+            ;;
         --help | -h)
-            echo "Usage: ahotbuild [-s serial] [-f] [project_dir]"
+            echo "Usage: ahotbuild [-s serial] [-f] [-n|--dry-run] [project_dir]"
             echo ""
             echo "  -s serial     Target specific device serial"
             echo "  -f             Follow (tail) logs after launching"
+            echo "  -n, --dry-run  Print the APK path without building or installing"
             echo "  project_dir   Path to Android project root (default: current dir)"
             echo ""
             echo "Builds, installs, and launches the Android app."
@@ -544,7 +563,7 @@ function ahotbuild() {
 
     project_dir="${project_dir:-"$(pwd)"}"
 
-    _android_hot_core "$project_dir" true "$serial" "$do_follow"
+    _android_hot_core "$project_dir" true "$serial" "$do_follow" "$do_dry_run"
 }
 
 function ahotload() {
