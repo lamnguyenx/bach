@@ -3,25 +3,25 @@
 #                          LOGGING
 # ==============================================================
 
-ANSIFmt__reset='\033[00m'
-ANSIFmt__bold='\033[01m'
-ANSIFmt__disable='\033[02m'
-ANSIFmt__italic='\033[03m'
-ANSIFmt__underline='\033[04m'
-ANSIFmt__reverse='\033[07m'
-ANSIFmt__strikethrough='\033[09m'
-ANSIFmt__invisible='\033[08m'
+ANSIFmt__reset=$'\033[00m'
+ANSIFmt__bold=$'\033[01m'
+ANSIFmt__disable=$'\033[02m'
+ANSIFmt__italic=$'\033[03m'
+ANSIFmt__underline=$'\033[04m'
+ANSIFmt__reverse=$'\033[07m'
+ANSIFmt__strikethrough=$'\033[09m'
+ANSIFmt__invisible=$'\033[08m'
 
-ANSIFmt__red='\033[31m'
-ANSIFmt__green='\033[32m'
-ANSIFmt__yellow='\033[33m'
-ANSIFmt__violet='\033[35m'
-ANSIFmt__gray='\033[38;5;243m'
-ANSIFmt__cyan='\033[00;36m'
+ANSIFmt__red=$'\033[31m'
+ANSIFmt__green=$'\033[32m'
+ANSIFmt__yellow=$'\033[33m'
+ANSIFmt__violet=$'\033[35m'
+ANSIFmt__gray=$'\033[38;5;243m'
+ANSIFmt__cyan=$'\033[36m'
 
-ANSIFmt__bright_green='\033[00;92m'
-ANSIFmt__bright_yellow='\033[00;93m'
-ANSIFmt__bright_blue='\033[00;94m'
+ANSIFmt__bright_green=$'\033[92m'
+ANSIFmt__bright_yellow=$'\033[93m'
+ANSIFmt__bright_blue=$'\033[94m'
 
 function strip_colors() {
     sed 's/\x1b\[[0-9;]*m//g'
