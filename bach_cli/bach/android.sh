@@ -33,13 +33,64 @@ function _android_get_package_name() {
     echo "$package_name"
 }
 
+# Find the Android app module: 'app' subdir, any module subdir with
+# applicationId/namespace, or the project root itself (flat layout).
+# Usage: _android_find_app_module <project_dir>
+# Returns: module name echoed to stdout, '.' for root-as-module, empty if none
+function _android_find_app_module() {
+    local project_dir="$1"
+
+    # 1. Standard 'app' module
+    if [[ -f "$project_dir/app/build.gradle" ]] || [[ -f "$project_dir/app/build.gradle.kts" ]]; then
+        echo "app"
+        return 0
+    fi
+
+    # 2. Other module directories with applicationId or namespace
+    local dir module_name bg_file bg_kts_file
+    for dir in "$project_dir"/*/; do
+        if [[ -d "$dir" ]]; then
+            module_name=$(basename "$dir")
+            # Skip hidden directories and common non-module directories
+            [[ "$module_name" == .* ]] && continue
+            [[ "$module_name" == "gradle" ]] && continue
+            [[ "$module_name" == "build" ]] && continue
+
+            bg_file="$dir/build.gradle"
+            bg_kts_file="$dir/build.gradle.kts"
+
+            if { [[ -f "$bg_file" ]] && { grep -q "applicationId" "$bg_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$bg_file" 2>/dev/null; }; } ||
+                { [[ -f "$bg_kts_file" ]] && { grep -q "applicationId" "$bg_kts_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$bg_kts_file" 2>/dev/null; }; }; then
+                echo "$module_name"
+                return 0
+            fi
+        fi
+    done
+
+    # 3. Root project itself is the app module (flat layout)
+    local root_bg_file="$project_dir/build.gradle"
+    local root_bg_kts_file="$project_dir/build.gradle.kts"
+    if { [[ -f "$root_bg_file" ]] && { grep -q "applicationId" "$root_bg_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$root_bg_file" 2>/dev/null; }; } ||
+        { [[ -f "$root_bg_kts_file" ]] && { grep -q "applicationId" "$root_bg_kts_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$root_bg_kts_file" 2>/dev/null; }; }; then
+        echo "."
+        return 0
+    fi
+
+    return 1
+}
+
 # Find the debug APK for a module
-# Handles custom outputFileName and split APKs
+# Handles custom outputFileName and split APKs. '.' module = flat/root layout.
 # Usage: _android_find_apk <project_dir> <app_module>
 function _android_find_apk() {
     local project_dir="$1"
     local app_module="$2"
-    local apk_dir="${project_dir}/${app_module}/build/outputs/apk/debug"
+    local apk_dir
+    if [[ "$app_module" == "." ]]; then
+        apk_dir="${project_dir}/build/outputs/apk/debug"
+    else
+        apk_dir="${project_dir}/${app_module}/build/outputs/apk/debug"
+    fi
 
     if [[ ! -d "$apk_dir" ]]; then
         return 1
@@ -381,50 +432,29 @@ function _android_hot_core() {
     fi
     project_dir="$(cd "$project_dir" && pwd)"
 
-    # Find the app module (directory with build.gradle containing applicationId or namespace)
-    local app_module=""
-    local build_gradle_file=""
-
-    # First, try the standard 'app' module
-    if [[ -f "$project_dir/app/build.gradle" ]] || [[ -f "$project_dir/app/build.gradle.kts" ]]; then
-        app_module="app"
-    else
-        # Search for other modules with applicationId or namespace in their build.gradle
-        for dir in "$project_dir"/*/; do
-            if [[ -d "$dir" ]]; then
-                local module_name
-                module_name=$(basename "$dir")
-                # Skip hidden directories and common non-module directories
-                [[ "$module_name" == .* ]] && continue
-                [[ "$module_name" == "gradle" ]] && continue
-                [[ "$module_name" == "build" ]] && continue
-
-                local bg_file="$dir/build.gradle"
-                local bg_kts_file="$dir/build.gradle.kts"
-
-                if [[ -f "$bg_file" ]] && { grep -q "applicationId" "$bg_file" 2>/dev/null || grep -qE '^\s*namespace\s+' "$bg_file" 2>/dev/null; }; then
-                    app_module="$module_name"
-                    break
-                elif [[ -f "$bg_kts_file" ]] && { grep -q "applicationId" "$bg_kts_file" 2>/dev/null || grep -qE '^\s*namespace\s+' "$bg_kts_file" 2>/dev/null; }; then
-                    app_module="$module_name"
-                    break
-                fi
-            fi
-        done
-    fi
+    # Find the app module: 'app' subdir, a module subdir, or the root itself
+    local app_module
+    app_module=$(_android_find_app_module "$project_dir")
 
     if [[ -z "$app_module" ]]; then
         echo "ERROR: Could not find an Android app module (no build.gradle with applicationId or namespace found)" >&2
         return 1
     fi
-    echo "📱 Module: $app_module"
+
+    local module_dir="$project_dir"
+    if [[ "$app_module" == "." ]]; then
+        echo "📱 Module: (root project)"
+    else
+        module_dir="$project_dir/$app_module"
+        echo "📱 Module: $app_module"
+    fi
 
     # Determine build.gradle file path
-    if [[ -f "$project_dir/$app_module/build.gradle" ]]; then
-        build_gradle_file="$project_dir/$app_module/build.gradle"
-    elif [[ -f "$project_dir/$app_module/build.gradle.kts" ]]; then
-        build_gradle_file="$project_dir/$app_module/build.gradle.kts"
-    else
+    local build_gradle_file="$module_dir/build.gradle"
+    if [[ ! -f "$build_gradle_file" ]]; then
+        build_gradle_file="$module_dir/build.gradle.kts"
+    fi
+    if [[ ! -f "$build_gradle_file" ]]; then
         echo "ERROR: build.gradle not found for module '$app_module'" >&2
         return 1
     fi
@@ -451,19 +481,30 @@ function _android_hot_core() {
             echo "ERROR: Neither gradlew nor gradle found in project directory" >&2
             return 1
         fi
-        (cd "$project_dir" && $gradle_cmd :"${app_module}":assembleDebug) || {
+        local gradle_task
+        if [[ "$app_module" == "." ]]; then
+            gradle_task="assembleDebug"
+        else
+            gradle_task=":${app_module}:assembleDebug"
+        fi
+        (cd "$project_dir" && $gradle_cmd "$gradle_task") || {
             echo "ERROR: Build failed" >&2
             return 1
         }
     fi
 
     # Find the APK
-    local apk_path
+    local apk_path apk_dir
+    if [[ "$app_module" == "." ]]; then
+        apk_dir="${project_dir}/build/outputs/apk/debug"
+    else
+        apk_dir="${project_dir}/${app_module}/build/outputs/apk/debug"
+    fi
     apk_path=$(_android_find_apk "$project_dir" "$app_module")
 
     if [[ "$do_dry_run" == true ]]; then
         if [[ -z "$apk_path" ]] || [[ ! -f "$apk_path" ]]; then
-            echo "📦 APK would be built at: ${project_dir}/${app_module}/build/outputs/apk/debug/"
+            echo "📦 APK would be built at: ${apk_dir}/"
             echo "   (no existing APK found - run without --dry-run to build)"
         else
             echo "📦 APK: $apk_path"
@@ -472,7 +513,7 @@ function _android_hot_core() {
     fi
 
     if [[ -z "$apk_path" ]] || [[ ! -f "$apk_path" ]]; then
-        echo "ERROR: APK not found in ${project_dir}/${app_module}/build/outputs/apk/debug/" >&2
+        echo "ERROR: APK not found in ${apk_dir}/" >&2
         return 1
     fi
 
@@ -498,6 +539,7 @@ function _android_hot_core() {
     }
 
     echo "🚀 Launching..."
+    _adb shell wm dismiss-keyguard 2>/dev/null || true
     _adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
     if [[ "$do_follow" == true ]]; then
@@ -652,32 +694,8 @@ function ahotload2() {
     project_dir="$(cd "$project_dir" && pwd)"
 
     # Find the app module
-    local app_module=""
-
-    if [[ -f "$project_dir/app/build.gradle" ]] || [[ -f "$project_dir/app/build.gradle.kts" ]]; then
-        app_module="app"
-    else
-        for dir in "$project_dir"/*/; do
-            if [[ -d "$dir" ]]; then
-                local module_name
-                module_name=$(basename "$dir")
-                [[ "$module_name" == .* ]] && continue
-                [[ "$module_name" == "gradle" ]] && continue
-                [[ "$module_name" == "build" ]] && continue
-
-                local bg_file="$dir/build.gradle"
-                local bg_kts_file="$dir/build.gradle.kts"
-
-                if [[ -f "$bg_file" ]] && { grep -q "applicationId" "$bg_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$bg_file" 2>/dev/null; }; then
-                    app_module="$module_name"
-                    break
-                elif [[ -f "$bg_kts_file" ]] && { grep -q "applicationId" "$bg_kts_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$bg_kts_file" 2>/dev/null; }; then
-                    app_module="$module_name"
-                    break
-                fi
-            fi
-        done
-    fi
+    local app_module
+    app_module=$(_android_find_app_module "$project_dir")
 
     if [[ -z "$app_module" ]]; then
         echo "ERROR: Could not find an Android app module" >&2
@@ -685,12 +703,13 @@ function ahotload2() {
     fi
 
     # Determine build.gradle file path
-    local build_gradle_file=""
-    if [[ -f "$project_dir/$app_module/build.gradle" ]]; then
-        build_gradle_file="$project_dir/$app_module/build.gradle"
-    elif [[ -f "$project_dir/$app_module/build.gradle.kts" ]]; then
-        build_gradle_file="$project_dir/$app_module/build.gradle.kts"
-    else
+    local module_dir="$project_dir"
+    [[ "$app_module" != "." ]] && module_dir="$project_dir/$app_module"
+    local build_gradle_file="$module_dir/build.gradle"
+    if [[ ! -f "$build_gradle_file" ]]; then
+        build_gradle_file="$module_dir/build.gradle.kts"
+    fi
+    if [[ ! -f "$build_gradle_file" ]]; then
         echo "ERROR: build.gradle not found for module '$app_module'" >&2
         return 1
     fi
@@ -709,6 +728,7 @@ function ahotload2() {
     _adb shell am force-stop "$package_name" 2>/dev/null || true
 
     echo "🚀 Launching..."
+    _adb shell wm dismiss-keyguard 2>/dev/null || true
     _adb logcat -c 2>/dev/null || true
     _adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
@@ -777,32 +797,8 @@ function awipe() {
         project_dir="$(cd "$project_dir" && pwd)"
 
         # Find the app module
-        local app_module=""
-
-        if [[ -f "$project_dir/app/build.gradle" ]] || [[ -f "$project_dir/app/build.gradle.kts" ]]; then
-            app_module="app"
-        else
-            for dir in "$project_dir"/*/; do
-                if [[ -d "$dir" ]]; then
-                    local module_name
-                    module_name=$(basename "$dir")
-                    [[ "$module_name" == .* ]] && continue
-                    [[ "$module_name" == "gradle" ]] && continue
-                    [[ "$module_name" == "build" ]] && continue
-
-                    local bg_file="$dir/build.gradle"
-                    local bg_kts_file="$dir/build.gradle.kts"
-
-                if [[ -f "$bg_file" ]] && { grep -q "applicationId" "$bg_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$bg_file" 2>/dev/null; }; then
-                    app_module="$module_name"
-                    break
-                elif [[ -f "$bg_kts_file" ]] && { grep -q "applicationId" "$bg_kts_file" 2>/dev/null || grep -qE '^[[:space:]]*namespace[[:space:]]+' "$bg_kts_file" 2>/dev/null; }; then
-                    app_module="$module_name"
-                    break
-                fi
-                fi
-            done
-        fi
+        local app_module
+        app_module=$(_android_find_app_module "$project_dir")
 
         if [[ -z "$app_module" ]]; then
             echo "ERROR: Could not find an Android app module" >&2
@@ -810,12 +806,13 @@ function awipe() {
         fi
 
         # Determine build.gradle file path
-        local build_gradle_file=""
-        if [[ -f "$project_dir/$app_module/build.gradle" ]]; then
-            build_gradle_file="$project_dir/$app_module/build.gradle"
-        elif [[ -f "$project_dir/$app_module/build.gradle.kts" ]]; then
-            build_gradle_file="$project_dir/$app_module/build.gradle.kts"
-        else
+        local module_dir="$project_dir"
+        [[ "$app_module" != "." ]] && module_dir="$project_dir/$app_module"
+        local build_gradle_file="$module_dir/build.gradle"
+        if [[ ! -f "$build_gradle_file" ]]; then
+            build_gradle_file="$module_dir/build.gradle.kts"
+        fi
+        if [[ ! -f "$build_gradle_file" ]]; then
             echo "ERROR: build.gradle not found for module '$app_module'" >&2
             return 1
         fi
@@ -927,4 +924,4 @@ export -f ahotbuild ahotload ahotload2 awipe adbfs_reload
 
 # Export internal helpers (needed by public functions in subshells)
 export -f _android_select_device _adb _android_hot_core
-export -f _android_get_package_name _android_find_apk
+export -f _android_get_package_name _android_find_apk _android_find_app_module
