@@ -196,8 +196,18 @@ function hotloadl() {
 
 function hotload() {
     # Hot reload docker-compose services with pattern matching
-    # Args: patterns to match service names (optional - matches all if none provided)
-    local patterns=("$@")
+    # Args: [-f] [patterns to match service names]
+    #       -f: follow logs after restart
+    local follow_logs=false
+    local patterns=()
+
+    for arg in "$@"; do
+        if [ "$arg" = "-f" ]; then
+            follow_logs=true
+        else
+            patterns+=("$arg")
+        fi
+    done
 
     # Filter services based on patterns
     if ! filter_docker_services "${patterns[@]}"; then
@@ -207,10 +217,14 @@ function hotload() {
     # Display which services will be restarted
     log_info "🔄 Restarting services: ${FILTERED_SERVICES[*]}"
 
-    # Restart the matched services
+    # Kill and start the matched services
     docker_compose_operation "Killing services" kill "${FILTERED_SERVICES[@]}" &&
-        docker_compose_operation "Starting services" up -d --no-deps --force-recreate "${FILTERED_SERVICES[@]}" &&
+        docker_compose_operation "Starting services" up -d --no-deps --force-recreate "${FILTERED_SERVICES[@]}"
+
+    # Follow logs only if -f flag was supplied
+    if $follow_logs; then
         docker_compose_operation "Following logs" logs -f "${FILTERED_SERVICES[@]}"
+    fi
 }
 
 function coldload() {
