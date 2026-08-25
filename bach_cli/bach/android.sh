@@ -917,10 +917,132 @@ function adbfs_reload() {
     adbfs "$mount_point"
 }
 
+function adb_zoom() {
+    local serial=""
+    local subcmd=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        -s)
+            serial="$2"
+            shift 2
+            ;;
+        --help | -h)
+            echo "Usage: adb_zoom [-s serial] <reset|view|set N>"
+            echo ""
+            echo "  -s serial    Target specific device serial"
+            echo "  reset        Reset DPI to factory default"
+            echo "  view         Show current and physical DPI"
+            echo "  set N        Set DPI to N (must be within ±100 of physical)"
+            echo ""
+            echo "Lower DPI = larger UI; higher DPI = smaller UI."
+            echo ""
+            echo "Examples:"
+            echo "  adb_zoom view"
+            echo "  adb_zoom set 240"
+            echo "  adb_zoom reset"
+            return 0
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            return 1
+            ;;
+        *)
+            subcmd="$1"
+            shift
+            break
+            ;;
+        esac
+    done
+
+    if [[ -z "$subcmd" ]]; then
+        echo "ERROR: Missing subcommand. Use: adb_zoom reset|view|set N" >&2
+        return 1
+    fi
+
+    local _ANDROID_SERIAL
+    _ANDROID_SERIAL=$(_android_select_device "$serial") || return 1
+
+    # `wm density` output:
+    #   Physical density: 320
+    #   Override density: 240    (only when an override is set)
+    local density_output physical override current
+    density_output=$(_bach_adb shell wm density 2>/dev/null | tr -d '\r')
+    physical=$(echo "$density_output" | sed -n 's/^Physical density:[[:space:]]*\([0-9]*\).*/\1/p')
+    override=$(echo "$density_output" | sed -n 's/^Override density:[[:space:]]*\([0-9]*\).*/\1/p')
+
+    if [[ -z "$physical" ]]; then
+        echo "ERROR: Could not read physical density from device" >&2
+        return 1
+    fi
+
+    if [[ -n "$override" ]]; then
+        current="$override"
+    else
+        current="$physical"
+    fi
+
+    local lo hi
+    lo=$((physical - 100))
+    hi=$((physical + 100))
+
+    case "$subcmd" in
+    view)
+        echo "Physical DPI: $physical"
+        if [[ -n "$override" ]]; then
+            echo "Override DPI: $override (current)"
+        else
+            echo "Override DPI: (none — using physical)"
+        fi
+        echo "Allowed set range: $lo–$hi (±100 of physical)"
+        ;;
+    reset)
+        if [[ -z "$override" ]]; then
+            echo "Already at physical DPI: $physical (no override set)"
+            return 0
+        fi
+        _bach_adb shell wm density reset >/dev/null 2>&1 || {
+            echo "ERROR: Failed to reset density" >&2
+            return 1
+        }
+        echo "✅ DPI reset: $override → $physical"
+        ;;
+    set)
+        local new_dpi="${1:-}"
+        if [[ -z "$new_dpi" ]]; then
+            echo "ERROR: Missing DPI value. Usage: adb_zoom set <N>" >&2
+            return 1
+        fi
+        if ! [[ "$new_dpi" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: '$new_dpi' is not a valid integer DPI" >&2
+            return 1
+        fi
+        if [[ "$new_dpi" -lt "$lo" ]] || [[ "$new_dpi" -gt "$hi" ]]; then
+            echo "ERROR: DPI $new_dpi is out of range" >&2
+            echo "       Physical: $physical | Allowed: $lo–$hi (±100)" >&2
+            return 1
+        fi
+        if [[ "$new_dpi" == "$current" ]]; then
+            echo "DPI already at $current — nothing to do"
+            return 0
+        fi
+        _bach_adb shell wm density "$new_dpi" >/dev/null 2>&1 || {
+            echo "ERROR: Failed to set density" >&2
+            return 1
+        }
+        echo "✅ DPI set: $current → $new_dpi (physical: $physical)"
+        ;;
+    *)
+        echo "ERROR: Unknown subcommand '$subcmd'. Use: reset | view | set N" >&2
+        return 1
+        ;;
+    esac
+}
+
 # Export public API functions
 export -f get_android_app_name
 export -f atermux termux_root
-export -f ahotbuild ahotload ahotload2 awipe adbfs_reload
+export -f ahotbuild ahotload ahotload2 awipe adbfs_reload adb_zoom
 
 # Export internal helpers (needed by public functions in subshells)
 export -f _android_select_device _bach_adb _android_hot_core
