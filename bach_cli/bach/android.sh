@@ -196,7 +196,7 @@ function _android_select_device() {
 
 # Wrapper for adb that uses selected device serial.
 # Set _ANDROID_SERIAL before calling this function.
-function _adb() {
+function _bach_adb() {
     if [[ -n "${_ANDROID_SERIAL:-}" ]]; then
         command adb -s "$_ANDROID_SERIAL" "$@"
     else
@@ -255,7 +255,7 @@ function atermux() {
     _ANDROID_SERIAL=$(_android_select_device "$serial") || return 1
 
     # Check if Termux is installed
-    if ! _adb shell pm list packages 2>/dev/null | grep -q "package:com.termux"; then
+    if ! _bach_adb shell pm list packages 2>/dev/null | grep -q "package:com.termux"; then
         echo "Error: Termux is not installed on device '${_ANDROID_SERIAL}'" >&2
         return 1
     fi
@@ -264,16 +264,16 @@ function atermux() {
     # Try to get numeric UID of Termux bash binary (works if adb shell is root)
     # Using numeric UID avoids quote-mangling issues with adb shell and is
     # more reliable across different su implementations (Magisk, etc.).
-    uid=$(_adb shell "stat -c %u /data/data/com.termux/files/usr/bin/bash 2>/dev/null" | tr -d '\r')
+    uid=$(_bach_adb shell "stat -c %u /data/data/com.termux/files/usr/bin/bash 2>/dev/null" | tr -d '\r')
 
     # Fallback: try ls -n to get numeric UID
     if [ -z "$uid" ] || ! [[ "$uid" =~ ^[0-9]+$ ]]; then
-        uid=$(_adb shell "ls -n /data/data/com.termux/files/usr/bin/bash 2>/dev/null | awk '{print \$3}'" | tr -d '\r')
+        uid=$(_bach_adb shell "ls -n /data/data/com.termux/files/usr/bin/bash 2>/dev/null | awk '{print \$3}'" | tr -d '\r')
     fi
 
     # Fallback: try to infer from package userId
     if [ -z "$uid" ] || ! [[ "$uid" =~ ^[0-9]+$ ]]; then
-        uid=$(_adb shell "dumpsys package com.termux 2>/dev/null | sed -n 's/.*userId=\\([0-9]*\\).*/\\1/p' | head -1" | tr -d '\r')
+        uid=$(_bach_adb shell "dumpsys package com.termux 2>/dev/null | sed -n 's/.*userId=\\([0-9]*\\).*/\\1/p' | head -1" | tr -d '\r')
     fi
 
     if [ -z "$uid" ] || ! [[ "$uid" =~ ^[0-9]+$ ]]; then
@@ -293,27 +293,27 @@ function atermux() {
     fi
 
     # Check if su is available
-    if _adb shell "command -v su >/dev/null 2>&1"; then
+    if _bach_adb shell "command -v su >/dev/null 2>&1"; then
         if [[ "$root_mode" == true ]]; then
             # Root mode: always use su 0
             if [[ ${#cmd_args[@]} -eq 0 ]]; then
-                _adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+                _bach_adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
             else
-                _adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+                _bach_adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
             fi
         else
             # Normal mode: switch to app user via su
             if [[ ${#cmd_args[@]} -eq 0 ]]; then
                 if [[ "$uid" =~ ^[0-9]+$ ]]; then
-                    _adb shell -t -t "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+                    _bach_adb shell -t -t "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
                 else
-                    _adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+                    _bach_adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
                 fi
             else
                 if [[ "$uid" =~ ^[0-9]+$ ]]; then
-                    _adb shell "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+                    _bach_adb shell "su ${uid} sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
                 else
-                    _adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+                    _bach_adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
                 fi
             fi
         fi
@@ -323,11 +323,11 @@ function atermux() {
             echo "Error: Device is not rooted (su not available). Root mode requires root access." >&2
             return 1
         fi
-        if _adb shell "run-as com.termux true >/dev/null 2>&1"; then
+        if _bach_adb shell "run-as com.termux true >/dev/null 2>&1"; then
             if [[ ${#cmd_args[@]} -eq 0 ]]; then
-                _adb shell -t -t "run-as com.termux sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+                _bach_adb shell -t -t "run-as com.termux sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
             else
-                _adb shell "run-as com.termux sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+                _bach_adb shell "run-as com.termux sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
             fi
         else
             echo "Error: Cannot open Termux shell on this device." >&2
@@ -383,12 +383,12 @@ function termux_root() {
     _ANDROID_SERIAL=$(_android_select_device "$serial") || return 1
 
     # Check if Termux is installed
-    if ! _adb shell pm list packages 2>/dev/null | grep -q "package:com.termux"; then
+    if ! _bach_adb shell pm list packages 2>/dev/null | grep -q "package:com.termux"; then
         echo "Error: Termux is not installed on device '${_ANDROID_SERIAL}'" >&2
         return 1
     fi
 
-    if ! _adb shell "command -v su >/dev/null 2>&1"; then
+    if ! _bach_adb shell "command -v su >/dev/null 2>&1"; then
         echo "Error: Device is not rooted (su not available). termux_root requires root access." >&2
         return 1
     fi
@@ -405,9 +405,9 @@ function termux_root() {
     fi
 
     if [[ ${#cmd_args[@]} -eq 0 ]]; then
-        _adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
+        _bach_adb shell -t -t "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; exec /data/data/com.termux/files/usr/bin/bash'"
     else
-        _adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
+        _bach_adb shell "su 0 sh -c 'export PATH=/data/data/com.termux/files/usr/bin:\$PATH; export HOME=/data/data/com.termux/files/home; cd /data/data/com.termux/files/home; $quoted_cmd'"
     fi
 }
 
@@ -519,7 +519,7 @@ function _android_hot_core() {
 
     # Check Play Protect setting
     local verifier_setting
-    verifier_setting=$(_adb shell settings get global verifier_verify_adb_installs 2>/dev/null | tr -d '\r')
+    verifier_setting=$(_bach_adb shell settings get global verifier_verify_adb_installs 2>/dev/null | tr -d '\r')
     if [[ "$verifier_setting" != "0" ]]; then
         echo "⚠️  WARNING: Google Play Protect may block installation"
         echo "    Current setting: verifier_verify_adb_installs=${verifier_setting:-'not set'}"
@@ -533,29 +533,29 @@ function _android_hot_core() {
 
     # Install & launch
     echo "📲 Installing..."
-    _adb install -r -t "$apk_path" || {
+    _bach_adb install -r -t "$apk_path" || {
         echo "ERROR: Install failed" >&2
         return 1
     }
 
     echo "🚀 Launching..."
-    _adb shell wm dismiss-keyguard 2>/dev/null || true
-    _adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+    _bach_adb shell wm dismiss-keyguard 2>/dev/null || true
+    _bach_adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
     if [[ "$do_follow" == true ]]; then
         echo "📋 Tailing logs (package: $package_name)..."
-        _adb logcat -c 2>/dev/null || true
+        _bach_adb logcat -c 2>/dev/null || true
         sleep 0.5
         local pid sys_noise_re
-        pid=$(_adb shell pidof "$package_name" 2>/dev/null | tr -d '\r' | awk '{print $1}')
+        pid=$(_bach_adb shell pidof "$package_name" 2>/dev/null | tr -d '\r' | awk '{print $1}')
         sys_noise_re=' (Adreno\S*|vulkan\S*|TrafficStats|ziparchive|Perf[\t ]'
         sys_noise_re+='|GraphicsEnvironment|qdgralloc|SnapAlloc|ActivityThread'
         sys_noise_re+='|nativeloader|TextToSpeech|System\.err|WindowOnBackDispatcher'
         sys_noise_re+='|VRI\[|WM-WrkMgrInitializer)[\t ]*:'
         if [[ -n "$pid" ]]; then
-            _adb logcat -v threadtime --pid="$pid" | grep --line-buffered -v -E "$sys_noise_re"
+            _bach_adb logcat -v threadtime --pid="$pid" | grep --line-buffered -v -E "$sys_noise_re"
         else
-            _adb logcat -v threadtime
+            _bach_adb logcat -v threadtime
         fi
     fi
 }
@@ -725,25 +725,25 @@ function ahotload2() {
 
     echo "📦 Package: $package_name"
     echo "🔪 Stopping app..."
-    _adb shell am force-stop "$package_name" 2>/dev/null || true
+    _bach_adb shell am force-stop "$package_name" 2>/dev/null || true
 
     echo "🚀 Launching..."
-    _adb shell wm dismiss-keyguard 2>/dev/null || true
-    _adb logcat -c 2>/dev/null || true
-    _adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+    _bach_adb shell wm dismiss-keyguard 2>/dev/null || true
+    _bach_adb logcat -c 2>/dev/null || true
+    _bach_adb shell monkey -p "$package_name" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
 
     echo "📋 Tailing logs (package: $package_name)..."
     sleep 0.5
     local pid sys_noise_re
-    pid=$(_adb shell pidof "$package_name" 2>/dev/null | tr -d '\r' | awk '{print $1}')
+    pid=$(_bach_adb shell pidof "$package_name" 2>/dev/null | tr -d '\r' | awk '{print $1}')
     sys_noise_re=' (Adreno\S*|vulkan\S*|TrafficStats|ziparchive|Perf[\t ]'
     sys_noise_re+='|GraphicsEnvironment|qdgralloc|SnapAlloc|ActivityThread'
     sys_noise_re+='|nativeloader|TextToSpeech|System\.err|WindowOnBackDispatcher'
     sys_noise_re+='|VRI\[|WM-WrkMgrInitializer)[\t ]*:'
     if [[ -n "$pid" ]]; then
-        _adb logcat -v threadtime --pid="$pid" | grep --line-buffered -v -E "$sys_noise_re"
+        _bach_adb logcat -v threadtime --pid="$pid" | grep --line-buffered -v -E "$sys_noise_re"
     else
-        _adb logcat -v threadtime
+        _bach_adb logcat -v threadtime
     fi
 }
 
@@ -834,13 +834,13 @@ function awipe() {
     case "$confirm" in
     [yY] | [yY][eE][sS])
         echo "🧹 Wiping backup transport..."
-        _adb shell bmgr wipe com.google.android.gms/.backup.BackupTransportService "$package_name" 2>/dev/null || true
+        _bach_adb shell bmgr wipe com.google.android.gms/.backup.BackupTransportService "$package_name" 2>/dev/null || true
 
         echo "🛑 Force-stopping app..."
-        _adb shell am force-stop "$package_name" 2>/dev/null || true
+        _bach_adb shell am force-stop "$package_name" 2>/dev/null || true
 
         echo "🗑️  Clearing app data..."
-        _adb shell pm clear "$package_name"
+        _bach_adb shell pm clear "$package_name"
 
         echo "✅ Wipe complete."
         ;;
@@ -923,5 +923,5 @@ export -f atermux termux_root
 export -f ahotbuild ahotload ahotload2 awipe adbfs_reload
 
 # Export internal helpers (needed by public functions in subshells)
-export -f _android_select_device _adb _android_hot_core
+export -f _android_select_device _bach_adb _android_hot_core
 export -f _android_get_package_name _android_find_apk _android_find_app_module
