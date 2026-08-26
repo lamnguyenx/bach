@@ -25,17 +25,29 @@ _cdp_launch() {
     case "$(uname -s)" in
         Linux)
             if $fg; then
-                "$linux_bin" --remote-debugging-port="$port" --user-data-dir="$profile_dir"
+                "$linux_bin" \
+                    --remote-debugging-port="$port" \
+                    --user-data-dir="$profile_dir" \
+                    --ignore-certificate-errors
             else
-                nohup "$linux_bin" --remote-debugging-port="$port" --user-data-dir="$profile_dir" >/dev/null 2>&1 &
+                nohup "$linux_bin" \
+                    --remote-debugging-port="$port" \
+                    --user-data-dir="$profile_dir" \
+                    --ignore-certificate-errors >/dev/null 2>&1 &
                 disown
             fi
             ;;
         Darwin)
             if $fg; then
-                "$mac_bin" --remote-debugging-port="$port" --user-data-dir="$profile_dir"
+                "$mac_bin" \
+                    --remote-debugging-port="$port" \
+                    --user-data-dir="$profile_dir" \
+                    --ignore-certificate-errors
             else
-                open -a "$mac_app" --args --remote-debugging-port="$port" --user-data-dir="$profile_dir"
+                open -a "$mac_app" --args \
+                    --remote-debugging-port="$port" \
+                    --user-data-dir="$profile_dir" \
+                    --ignore-certificate-errors
             fi
             ;;
         *)
