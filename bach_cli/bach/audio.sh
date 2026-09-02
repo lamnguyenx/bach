@@ -22,7 +22,7 @@ Subcommands:
   status                   List active forwards
 
 'start' options:
-  --device <d>   Local input device (ffmpeg avfoundation index/name, default: :0)
+  --device <d>   Local input device (ffmpeg avfoundation index/name, default: :default)
   --name <n>     Remote PulseAudio source name (default: macmic)
   --fifo <f>     Remote FIFO path (default: /tmp/mic.pcm)
   --rate <r>     Sample rate (default: 48000)
@@ -44,7 +44,7 @@ EOF
 
 function mic_forward_start() {
     local host=""
-    local device=":0"
+    local device=":default"
     local name="macmic"
     local fifo="/tmp/mic.pcm"
     local rate=48000
@@ -139,12 +139,29 @@ function mic_forward_start() {
     echo "🎤 Streaming mic to $host..."
     mkdir -p "$AUDIO_STATE_DIR"
     local logfile="/tmp/mic_forward_${host}.log"
+    local pidfile="/tmp/mic_forward_${host}.pid"
     local writer_pid
-    nohup bash -c "${capture_str}| ssh -C -o ServerAliveInterval=30 -o ServerAliveCountMax=3 ${compress} ${host} \"cat > ${fifo}\"" >"$logfile" 2>&1 &
-    writer_pid=$!
+    # Detach fully: setsid puts the pipeline in a new session without a
+    # controlling tty. Fall back to nohup + disown when setsid is unavailable
+    # (e.g. macOS without util-linux). Some setsid builds fork and the parent
+    # exits immediately, so have the pipeline record its own PID in a pidfile
+    # instead of relying on $!.
+    local detach=""
+    if command -v setsid >/dev/null 2>&1; then
+        detach="setsid "
+    fi
+    rm -f "$pidfile"
+    nohup ${detach}bash -c "echo \$\$ > '${pidfile}'; ${capture_str}| ssh -C -o ServerAliveInterval=30 -o ServerAliveCountMax=3 ${compress} ${host} \"cat > ${fifo}\"" >"$logfile" 2>&1 </dev/null &
+    if [[ -z "$detach" ]]; then
+        disown 2>/dev/null
+    fi
 
     sleep 2
-    if ! kill -0 "$writer_pid" 2>/dev/null; then
+    # Reject dead OR stopped jobs (stopped = SIGTTIN from background tty read)
+    writer_pid=$(cat "$pidfile" 2>/dev/null)
+    local proc_stat
+    proc_stat=$(ps -p "$writer_pid" -o stat= 2>/dev/null)
+    if [[ -z "$proc_stat" ]] || [[ "$proc_stat" == *T* ]]; then
         echo "ERROR: mic capture died. See $logfile" >&2
         ssh "$host" "pactl unload-module $mod_id" 2>/dev/null
         return 1
@@ -189,8 +206,11 @@ function mic_forward_stop() {
     fifo=$(printf '%s\n' "$line" | cut -f5)
     logfile=$(printf '%s\n' "$line" | cut -f6)
 
-    kill "$pid" 2>/dev/null
+    # Kill children (ffmpeg/ssh) first so killing the bash -c wrapper
+    # doesn't orphan them, then the wrapper itself.
     pkill -P "$pid" 2>/dev/null
+    kill "$pid" 2>/dev/null
+    rm -f "/tmp/mic_forward_${host}.pid" 2>/dev/null
     ssh "$host" "pactl unload-module $mod_id; rm -f $fifo" 2>/dev/null
     grep -vF "$state_pat" "$AUDIO_STATE_FILE" >"$AUDIO_STATE_FILE.tmp" 2>/dev/null
     mv "$AUDIO_STATE_FILE.tmp" "$AUDIO_STATE_FILE" 2>/dev/null
