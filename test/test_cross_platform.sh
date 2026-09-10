@@ -119,5 +119,14 @@ else
     exit 1
 fi
 
+# Test cam_forward availability
+echo "9. Testing cam_forward..."
+if type -t cam_forward >/dev/null 2>&1; then
+    echo "   ✅ cam_forward is available"
+else
+    echo "   ❌ cam_forward missing"
+    exit 1
+fi
+
 echo ""
 echo "🎉 All tests passed! Scripts are cross-platform compatible."

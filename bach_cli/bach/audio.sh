@@ -115,12 +115,46 @@ function mic_forward_start() {
     local capture_str
     printf -v capture_str '%q ' "${capture_cmd[@]}"
 
-    # Remote: PulseAudio must be running
+    # Remote: need a PulseAudio-compatible daemon reachable via pactl.
+    # Works with either classic PulseAudio or PipeWire's pipewire-pulse,
+    # and reports *which* prerequisite is missing instead of a vague error.
     echo "📡 Connecting to $host..."
-    if ! ssh "$host" "pactl info >/dev/null 2>&1 || { pulseaudio --start >/dev/null 2>&1 || systemctl --user start pulseaudio >/dev/null 2>&1; }" 2>/dev/null; then
-        echo "ERROR: cannot reach $host" >&2
-        return 1
-    fi
+    local probe
+    probe=$(ssh "$host" '
+        command -v pactl >/dev/null 2>&1 || { echo NO_PACTL; exit 0; }
+        pactl info >/dev/null 2>&1 && { echo OK; exit 0; }
+        # Daemon present but not responding — start one. Prefer the
+        # PipeWire unit when configured (modern default), else PulseAudio.
+        if systemctl --user list-unit-files pipewire-pulse.service >/dev/null 2>&1; then
+            systemctl --user start pipewire-pulse >/dev/null 2>&1
+        elif command -v pulseaudio >/dev/null 2>&1; then
+            pulseaudio --start >/dev/null 2>&1 || systemctl --user start pulseaudio >/dev/null 2>&1
+        fi
+        sleep 1
+        pactl info >/dev/null 2>&1 && { echo OK; exit 0; }
+        echo NO_DAEMON
+    ')
+    case "$probe" in
+        OK) ;;
+        NO_PACTL)
+            echo "ERROR: 'pactl' not installed on $host." >&2
+            echo "       Install it there, e.g:" >&2
+            echo "         sudo apt install pulseaudio-utils     # Debian/Ubuntu" >&2
+            echo "         sudo dnf install pulseaudio-utils     # Fedora" >&2
+            return 1
+            ;;
+        NO_DAEMON)
+            echo "ERROR: no PulseAudio/PipeWire-Pulse daemon on $host." >&2
+            echo "       Start one there:" >&2
+            echo "         systemctl --user start pipewire-pulse  # PipeWire (modern)" >&2
+            echo "         pulseaudio --start                     # classic PulseAudio" >&2
+            return 1
+            ;;
+        *)
+            echo "ERROR: cannot reach $host via ssh (or unexpected response)." >&2
+            return 1
+            ;;
+    esac
 
     # Remote: load pipe-source module (it creates the FIFO itself).
     # Reclaim any stale module already owning this FIFO (e.g. from a crash).
