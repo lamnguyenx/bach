@@ -22,18 +22,27 @@ _cdp_launch() {
     local profile_dir="$HOME/.local/share/${profile_root}/cdp-${port}"
     mkdir -p "$profile_dir"
 
+    local log_file="$HOME/vivaldi_cdp_${port}.log"
+    local chromium_log_flags=(
+        --enable-logging
+        --log-level=0
+        --log-file="$log_file"
+    )
+
     case "$(uname -s)" in
         Linux)
             if $fg; then
                 "$linux_bin" \
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
-                    --ignore-certificate-errors
+                    --ignore-certificate-errors \
+                    "${chromium_log_flags[@]}"
             else
                 nohup "$linux_bin" \
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
-                    --ignore-certificate-errors >/dev/null 2>&1 &
+                    --ignore-certificate-errors \
+                    "${chromium_log_flags[@]}" >"$log_file" 2>&1 &
                 disown
             fi
             ;;
@@ -42,12 +51,15 @@ _cdp_launch() {
                 "$mac_bin" \
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
-                    --ignore-certificate-errors
+                    --ignore-certificate-errors \
+                    "${chromium_log_flags[@]}"
             else
-                open -a "$mac_app" --args \
+                nohup "$mac_bin" \
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
-                    --ignore-certificate-errors
+                    --ignore-certificate-errors \
+                    "${chromium_log_flags[@]}" >"$log_file" 2>&1 &
+                disown
             fi
             ;;
         *)
@@ -55,6 +67,12 @@ _cdp_launch() {
             return 1
             ;;
     esac
+
+    if ! $fg; then
+        echo "Log: $log_file"
+        echo "This is just log tailing -f, you can hit Ctrl+C to stop."
+        tail -f "$log_file"
+    fi
 }
 
 function vivaldi_cdp() {
@@ -67,4 +85,4 @@ function chrome_cdp() {
         "chrome-cdp-profiles" "$@"
 }
 
-export -f vivaldi_cdp chrome_cdp
+export -f _cdp_launch vivaldi_cdp chrome_cdp
