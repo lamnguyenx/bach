@@ -35,8 +35,9 @@ On Linux:
     --user-data-dir and --remote-debugging-port).
 
 Notes:
-  - Launched detached (Darwin: nohup; Linux: `systemd-run --user` when
-    available, else setsid+nohup) so it survives the launching shell.
+  - Launched detached (Darwin: nohup; Linux: setsid+nohup) so it
+    survives the launching shell, while inheriting the full environment
+    (a `systemd-run --user` unit would strip it and VS Code would die).
   - `--user-data-dir` with a separate profile forces a separate VS Code
     instance; without it the window would join an already-running one
     and ignore the port.
@@ -172,26 +173,20 @@ Examples:
     fi
 
     # --- background launch ------------------------------------------------
+    # Detach so it survives the launching shell, but inherit the FULL
+    # login environment (PATH/HOME/XAUTHORITY/DBUS_SESSION_BUS_ADDRESS/...)
+    # so VS Code can reach X and dbus. A `systemd-run --user` transient
+    # unit would instead run with a stripped environment (only DISPLAY),
+    # and VS Code dies within ~1s -- hence no systemd-run here.
+    # Darwin has no setsid; nohup+disown is enough on macOS.
     case "$os" in
     Darwin)
         nohup "$code_bin" "${args[@]}" >"$log_file" 2>&1 &
         disown
         ;;
     Linux)
-        if command -v systemd-run >/dev/null 2>&1 &&
-            [ -n "${XDG_RUNTIME_DIR:-}" ] &&
-            systemctl --user is-system-running >/dev/null 2>&1; then
-            systemctl --user stop "bach-vscode-$port.service" 2>/dev/null
-            systemctl --user reset-failed "bach-vscode-$port.service" 2>/dev/null
-            systemd-run --user --unit="bach-vscode-$port" --collect \
-                --setenv=DISPLAY="$DISPLAY" \
-                --property=StandardOutput=append:"$log_file" \
-                --property=StandardError=append:"$log_file" \
-                "$code_bin" "${args[@]}" >/dev/null 2>&1
-        else
-            setsid nohup "$code_bin" "${args[@]}" >"$log_file" 2>&1 </dev/null &
-            disown
-        fi
+        setsid nohup "$code_bin" "${args[@]}" >"$log_file" 2>&1 </dev/null &
+        disown
         ;;
     esac
 

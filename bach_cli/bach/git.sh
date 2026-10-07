@@ -709,64 +709,401 @@ function just_push_all() {
     fi
 }
 
-function find_just_committed_all() {
-    local show_details="${1:-false}"
+# -----------------------------------
+#      just-committed discovery
+# -----------------------------------
 
-    # Validate git repository
-    if ! validate_git_repo; then
+# Helpers shared by find_just_committed_all. Matches are stored in parallel
+# indexed arrays (bash 3.2 compatible - no associative arrays / mapfile).
+# FJC_M_REL[i]    relative path from the scan base ('' means the base itself)
+# FJC_M_ABS[i]    absolute repository path
+# FJC_M_NAME[i]   display name of the repository
+# FJC_M_MSG[i]    HEAD commit subject (always starts with '/// ')
+# FJC_M_HASH[i]   short commit hash
+# FJC_M_AUTHOR[i] commit author
+# FJC_M_DATE[i]   relative commit date
+# FJC_M_BRANCH[i] current branch (or 'detached HEAD')
+# FJC_NODES[]     every directory/leaf that leads to a match (tree building)
+
+function fjc_reset() {
+    # Reset all discovery state used by find_just_committed_all
+    FJC_M_REL=()
+    FJC_M_ABS=()
+    FJC_M_NAME=()
+    FJC_M_MSG=()
+    FJC_M_HASH=()
+    FJC_M_AUTHOR=()
+    FJC_M_DATE=()
+    FJC_M_BRANCH=()
+    FJC_NODES=()
+}
+
+function fjc_parse_code_workspace() {
+    # Parse a VSCode multi-root .code-workspace file
+    # Args: $1 - path to the .code-workspace file
+    # Output: one line per folder: "<name>\t<absolute path>"
+    local ws_file="$1"
+
+    if [ ! -f "$ws_file" ]; then
+        log_error "❌ Workspace file not found: $ws_file"
         return 1
     fi
 
-    # Function to check current commit in a repository
-    check_repo() {
-        local repo_path="$1"
-        local repo_name=$(basename "$repo_path")
+    local py
+    py=$(command -v python3 || command -v python || true)
+    if [ -z "$py" ]; then
+        log_error "❌ python3 is required to parse code-workspace files"
+        return 1
+    fi
 
-        cd "$repo_path" || return 1
+    "$py" - "$ws_file" <<'PY'
+import json
+import os
+import sys
 
-        # Get the current commit (HEAD) message
-        local head_message=$(git log -1 --pretty=format:"%s" HEAD 2>/dev/null)
+ws_file = sys.argv[1]
+with open(ws_file, "r", encoding="utf-8") as handle:
+    workspace = json.load(handle)
 
-        if [[ "$head_message" == "/// "* ]]; then
-            local commit_hash=$(git rev-parse --short HEAD)
-            local commit_date=$(git log -1 --pretty=format:"%cr" HEAD)
-            local author=$(git log -1 --pretty=format:"%an" HEAD)
+base = os.path.dirname(os.path.abspath(ws_file))
+for folder in workspace.get("folders", []):
+    path = folder.get("path", "")
+    if not path:
+        continue
+    name = folder.get("name") or os.path.basename(os.path.normpath(path))
+    abspath = os.path.normpath(os.path.join(base, path))
+    sys.stdout.write("%s\t%s\n" % (name, abspath))
+PY
+}
 
-            log_info "🦝 $repo_name"
-            log_info "   💬 $head_message"
-            log_info "   📍 $commit_hash by $author ($commit_date)"
+function fjc_check_and_add() {
+    # Record a repository only when its HEAD commit starts with '/// '
+    # Args: $1 - relative path from the scan base ('' for the base itself)
+    #       $2 - absolute repository path
+    #       $3 - display name
+    local rel_path="$1"
+    local repo_path="$2"
+    local repo_name="$3"
 
-            if [[ "$show_details" == "true" || "$show_details" == "-v" ]]; then
-                log_info "   📂 $repo_path"
-                log_info "   🌿 $(git branch --show-current 2>/dev/null || echo 'detached HEAD')"
-            fi
-            echo ""
+    if [ ! -d "$repo_path" ]; then
+        return 1
+    fi
+
+    if ! git -C "$repo_path" rev-parse --git-dir >/dev/null 2>&1; then
+        return 1
+    fi
+
+    local head_message
+    head_message=$(git -C "$repo_path" log -1 --pretty=format:"%s" HEAD 2>/dev/null)
+
+    if [[ "$head_message" != "/// "* ]]; then
+        return 1
+    fi
+
+    # Skip duplicates (keeps the first, shallowest entry)
+    local existing
+    for existing in "${FJC_M_ABS[@]}"; do
+        if [ "$existing" = "$repo_path" ]; then
             return 0
         fi
-        return 1
-    }
+    done
 
-    local original_dir=$(pwd)
-    local found_count=0
+    FJC_M_REL+=("$rel_path")
+    FJC_M_ABS+=("$repo_path")
+    FJC_M_NAME+=("$repo_name")
+    FJC_M_MSG+=("$head_message")
+    FJC_M_HASH+=("$(git -C "$repo_path" rev-parse --short HEAD 2>/dev/null)")
+    FJC_M_AUTHOR+=("$(git -C "$repo_path" log -1 --pretty=format:"%an" HEAD 2>/dev/null)")
+    FJC_M_DATE+=("$(git -C "$repo_path" log -1 --pretty=format:"%cr" HEAD 2>/dev/null)")
+    FJC_M_BRANCH+=("$(git -C "$repo_path" symbolic-ref --short -q HEAD 2>/dev/null || echo 'detached HEAD')")
+    return 0
+}
 
-    log_info "🔍 Searching for repositories with '/// ' commits at current HEAD..."
-    echo ""
+function fjc_collect_submodules() {
+    # Recursively scan git submodules below a repository and record matches
+    # Args: $1 - repository directory to scan
+    #       $2 - base directory used to compute relative paths
+    local repo_dir="$1"
+    local base_dir="$2"
 
-    # Check main repository
-    if check_repo "$original_dir"; then
-        ((found_count++))
+    if [ ! -d "$repo_dir" ]; then
+        return 0
     fi
 
-    # Check all submodules recursively
-    check_submodule_repo() {
-        local repo_path="$1"
-        if check_repo "$repo_path"; then
-            ((found_count++))
+    if ! git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local sub_abs rel_path sub_name
+    while IFS= read -r sub_abs; do
+        [ -z "$sub_abs" ] && continue
+        rel_path="${sub_abs#"$base_dir"/}"
+        sub_name=$(basename "$sub_abs")
+        fjc_check_and_add "$rel_path" "$sub_abs" "$sub_name"
+    done < <(cd "$repo_dir" && git submodule foreach --recursive --quiet 'echo "$PWD"' 2>/dev/null)
+}
+
+function fjc_collect_workspace() {
+    # Collect matching repositories from a VSCode .code-workspace file
+    # Args: $1 - path to the .code-workspace file
+    local ws_file="$1"
+    local base_dir
+    base_dir=$(cd "$(dirname "$ws_file")" && pwd)
+
+    local folder_name folder_path rel_path
+    while IFS=$'\t' read -r folder_name folder_path; do
+        [ -z "$folder_path" ] && continue
+
+        if [ "$folder_path" = "$base_dir" ]; then
+            rel_path=""
+        else
+            rel_path="${folder_path#"$base_dir"/}"
+            # Folders outside the workspace base fall back to their basename
+            if [ "$rel_path" = "$folder_path" ] || [[ "$rel_path" == /* ]]; then
+                rel_path=$(basename "$folder_path")
+            fi
         fi
-    }
 
-    process_submodules_recursive "check_submodule_repo" ""
+        fjc_check_and_add "$rel_path" "$folder_path" "$folder_name"
+        # Folders may themselves contain submodules worth reporting
+        fjc_collect_submodules "$folder_path" "$base_dir"
+    done < <(fjc_parse_code_workspace "$ws_file")
+}
 
+function fjc_collect_current_repo() {
+    # Collect matches from a repository and all of its submodules
+    # Args: $1 - git repository root
+    local git_root="$1"
+    fjc_check_and_add "" "$git_root" "$(basename "$git_root")"
+    fjc_collect_submodules "$git_root" "$git_root"
+}
+
+function fjc_add_node() {
+    # Add a tree node path if it is not already present
+    local candidate="$1"
+    local existing
+    for existing in "${FJC_NODES[@]}"; do
+        if [ "$existing" = "$candidate" ]; then
+            return 0
+        fi
+    done
+    FJC_NODES+=("$candidate")
+}
+
+function fjc_build_nodes() {
+    # Populate FJC_NODES with match leaves and all of their ancestor directories
+    FJC_NODES=()
+    local i rel_path node_path
+    for i in "${!FJC_M_REL[@]}"; do
+        rel_path="${FJC_M_REL[$i]}"
+        [ -z "$rel_path" ] && continue
+        node_path="$rel_path"
+        while [ -n "$node_path" ] && [ "$node_path" != "." ]; do
+            fjc_add_node "$node_path"
+            node_path=$(dirname "$node_path")
+        done
+    done
+}
+
+function fjc_match_index() {
+    # Print the match index for a relative path, or fail when not a match
+    local rel_path="$1"
+    local i
+    for i in "${!FJC_M_REL[@]}"; do
+        if [ "${FJC_M_REL[$i]}" = "$rel_path" ]; then
+            printf '%s' "$i"
+            return 0
+        fi
+    done
+    return 1
+}
+
+function fjc_detail_for() {
+    # Build the inline commit detail suffix for a tree node
+    # Args: $1 - relative path ('' for the root)
+    #       $2 - 'true' to include hash/author/date/branch details
+    local rel_path="$1"
+    local verbose="$2"
+    local index
+
+    if ! index=$(fjc_match_index "$rel_path"); then
+        return 0
+    fi
+
+    local detail=" ${ANSIFmt__bright_green:-}🦝${ANSIFmt__reset:-} ${FJC_M_MSG[$index]}"
+    if [[ "$verbose" == "true" || "$verbose" == "-v" ]]; then
+        detail+=" ${ANSIFmt__gray:-}[${FJC_M_HASH[$index]} by ${FJC_M_AUTHOR[$index]} (${FJC_M_DATE[$index]})]${ANSIFmt__reset:-}"
+        detail+=" ${ANSIFmt__gray:-}🌿 ${FJC_M_BRANCH[$index]}${ANSIFmt__reset:-}"
+    fi
+    printf '%s' "$detail"
+}
+
+function fjc_has_children() {
+    # Return 0 when a tree node has at least one child
+    local parent="$1"
+    local node_path node_parent
+    for node_path in "${FJC_NODES[@]}"; do
+        node_parent=$(dirname "$node_path")
+        [ "$node_parent" = "." ] && node_parent=""
+        if [ "$node_parent" = "$parent" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+function fjc_print_children() {
+    # Recursively render the ASCII tree for the children of a node
+    # Args: $1 - parent relative path ('' for the root)
+    #       $2 - prefix string used for indentation/connectors
+    #       $3 - 'true' to include verbose commit details
+    local parent="$1"
+    local prefix="$2"
+    local verbose="$3"
+
+    local -a children=()
+    local node_path node_parent
+    for node_path in "${FJC_NODES[@]}"; do
+        node_parent=$(dirname "$node_path")
+        [ "$node_parent" = "." ] && node_parent=""
+        if [ "$node_parent" = "$parent" ]; then
+            children+=("$node_path")
+        fi
+    done
+
+    local count=${#children[@]}
+    if [ "$count" -eq 0 ]; then
+        return 0
+    fi
+
+    # Sort children deterministically without mapfile (for bash 3.2 support)
+    local sorted line
+    sorted=$(printf '%s\n' "${children[@]}" | LC_ALL=C sort)
+    children=()
+    while IFS= read -r line; do
+        children+=("$line")
+    done <<<"$sorted"
+
+    local i label connector new_prefix
+    for ((i = 0; i < count; i++)); do
+        node_path="${children[$i]}"
+        label=$(basename "$node_path")
+
+        if [ $((i + 1)) -eq "$count" ]; then
+            connector="└── "
+            new_prefix="${prefix}    "
+        else
+            connector="├── "
+            new_prefix="${prefix}│   "
+        fi
+
+        echo "${prefix}${connector}${label}$(fjc_detail_for "$node_path" "$verbose")"
+
+        if fjc_has_children "$node_path"; then
+            fjc_print_children "$node_path" "$new_prefix" "$verbose"
+        fi
+    done
+}
+
+function fjc_render_tree() {
+    # Render the full ASCII tree of repositories with '/// ' HEAD commits
+    # Args: $1 - root label
+    #       $2 - 'true' to include verbose commit details
+    local root_label="$1"
+    local verbose="$2"
+
+    fjc_build_nodes
+    printf '%s\n' "${root_label}$(fjc_detail_for "" "$verbose")"
+    fjc_print_children "" "" "$verbose"
+}
+
+function find_just_committed_all() {
+    # Find repositories whose current HEAD commit starts with '/// '
+    #
+    # USAGE:
+    #   find_just_committed_all [<workspace>|<dir>] [-v|--details]
+    #
+    # ARGUMENTS:
+    #   <workspace>    Path to a VSCode .code-workspace file. When provided,
+    #                  its folders (and their submodules) are scanned instead
+    #                  of the current repository.
+    #   <dir>          A directory inside a git repository to scan.
+    #   -v|--details   Show commit hash, author, date and branch inline.
+    #
+    # OUTPUT:
+    #   An ASCII tree of the matching repositories, nested by path. Only
+    #   repositories with a '/// ' commit at HEAD are shown.
+    local workspace_file=""
+    local scan_dir=""
+    local show_details="false"
+
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+        true)
+            show_details="true"
+            ;;
+        false)
+            show_details="false"
+            ;;
+        -v | --details | --verbose)
+            show_details="true"
+            ;;
+        *.code-workspace)
+            workspace_file="$arg"
+            ;;
+        "")
+            ;;
+        *)
+            if [ -d "$arg" ]; then
+                scan_dir="$arg"
+            else
+                workspace_file="$arg"
+            fi
+            ;;
+        esac
+    done
+
+    log_info "🔍 Searching for repositories with '/// ' commits at current HEAD..."
+
+    fjc_reset
+
+    local root_label
+    if [ -n "$workspace_file" ]; then
+        if [ ! -f "$workspace_file" ]; then
+            log_error "❌ Workspace file not found: $workspace_file"
+            return 1
+        fi
+        root_label=$(basename "$workspace_file")
+        root_label="${root_label%.code-workspace}"
+        log_info "🗂️  Reading code-workspace: $workspace_file"
+        fjc_collect_workspace "$workspace_file"
+    elif [ -n "$scan_dir" ]; then
+        if ! git -C "$scan_dir" rev-parse --show-toplevel >/dev/null 2>&1; then
+            log_error "❌ Not a git repository: $scan_dir"
+            return 1
+        fi
+        root_label=$(basename "$(git -C "$scan_dir" rev-parse --show-toplevel)")
+        fjc_collect_current_repo "$(git -C "$scan_dir" rev-parse --show-toplevel)"
+    else
+        # Validate git repository and fall back to the current one + submodules
+        if ! validate_git_repo; then
+            return 1
+        fi
+        root_label=$(basename "$GIT_ROOT")
+        fjc_collect_current_repo "$GIT_ROOT"
+    fi
+
+    local found_count=${#FJC_M_REL[@]}
+
+    if [ "$found_count" -eq 0 ]; then
+        log_info "📊 Found 0 repositories with '/// ' commits at current HEAD"
+        return 0
+    fi
+
+    echo ""
+    fjc_render_tree "$root_label" "$show_details"
+    echo ""
     log_info "📊 Found $found_count repositories with '/// ' commits at current HEAD"
 }
 
@@ -837,3 +1174,8 @@ export -f git_remember_passwords git_remember_credentials git_trust_current_dir 
 export -f validate_params validate_git_repo change_directory process_submodules_recursive
 export -f gl_collect_all_submodules gl_find_submodules_recursive gl_display_by_levels
 export -f just_commit_push
+
+# Export just-committed discovery helpers
+export -f fjc_reset fjc_parse_code_workspace fjc_check_and_add fjc_collect_submodules
+export -f fjc_collect_workspace fjc_collect_current_repo fjc_add_node fjc_build_nodes
+export -f fjc_match_index fjc_detail_for fjc_has_children fjc_print_children fjc_render_tree

@@ -4,6 +4,9 @@
 # ==============================================================
 # Helpers to launch browsers with Chrome DevTools Protocol enabled.
 
+# Note: --disable-gpu is intentional. On some hosts (e.g. the NUC) a crashing
+# GPU process takes the whole browser down a couple of seconds after launch;
+# CDP automation does not need GPU acceleration.
 _cdp_launch() {
     local linux_bin="$1"
     local mac_app="$2"
@@ -36,14 +39,20 @@ _cdp_launch() {
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
                     --ignore-certificate-errors \
+                    --remote-allow-origins=* \
+                    --disable-gpu \
                     "${chromium_log_flags[@]}"
             else
+                local log_file="${profile_dir}.log"
                 nohup "$linux_bin" \
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
                     --ignore-certificate-errors \
+                    --remote-allow-origins=* \
+                    --disable-gpu \
                     "${chromium_log_flags[@]}" >"$log_file" 2>&1 &
                 disown
+                echo "logging to $log_file"
             fi
             ;;
         Darwin)
@@ -52,12 +61,16 @@ _cdp_launch() {
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
                     --ignore-certificate-errors \
+                    --remote-allow-origins=* \
+                    --disable-gpu \
                     "${chromium_log_flags[@]}"
             else
                 nohup "$mac_bin" \
                     --remote-debugging-port="$port" \
                     --user-data-dir="$profile_dir" \
                     --ignore-certificate-errors \
+                    --remote-allow-origins=* \
+                    --disable-gpu \
                     "${chromium_log_flags[@]}" >"$log_file" 2>&1 &
                 disown
             fi
