@@ -38,6 +38,15 @@ instead of removing the flag globally.
 - Playwright CDP suites run green through port 9022 — see the ALT cross-reference
   below.
 
+## Update 2026-10-22: GPU now on by default on macOS
+
+`--disable-gpu` also disables the only H.264 decoder on macOS (VideoToolbox),
+so every H.264 video (e.g. all X/Twitter videos) fails with
+`DECODER_ERROR_NOT_SUPPORTED` / `kUnsupportedConfig` while VP9 still plays.
+The flag is now defaulted per OS: on for Linux (keeps the NUC fix), off for
+macOS. `CDP_DISABLE_GPU=0|1` overrides either way, which is the escape hatch
+mentioned above.
+
 ## Related
 
 One distinct Vivaldi quirk surfaced while debugging this, but it is **not** fixed
