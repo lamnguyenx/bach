@@ -40,13 +40,24 @@ source_modules() {
     fi
 }
 
+# Function to load optional user configuration (not tracked by bach)
+function load_bach_config() {
+    local config_file="${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh"
+    if [ -f "$config_file" ]; then
+        # shellcheck disable=SC1090
+        source "$config_file"
+    fi
+}
+
 # Initial module loading
 source_modules
+load_bach_config
 # BACH_SOURCED=1
 
 # Reload function to reload all modules
 function reload_bach() {
     source_modules
+    load_bach_config
     echo "✅ All bach modules reloaded"
 }
 
@@ -55,4 +66,4 @@ function reload_bashrc() {
 }
 
 # Export public API functions
-export -f source_modules reload_bach reload_bashrc
+export -f source_modules load_bach_config reload_bach reload_bashrc

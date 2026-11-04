@@ -710,6 +710,443 @@ function just_push_all() {
 }
 
 # -----------------------------------
+#          opencode commit
+# -----------------------------------
+
+function jco() {
+    # Commit the current repository using opencode.
+    #
+    # USAGE:
+    #   jco                        - Commit with the configured defaults
+    #   jco "<extra instructions>" - Append instructions to the commit prompt
+    #   jco -m <provider/model>    - Override the model for this run
+    #   jco -h|--help              - Show this help message
+    #
+    # CONFIGURATION:
+    #   ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh
+    #     BACH_JCO_MODEL         - Model in provider/model form
+    #     BACH_JCO_PROMPT_FILE   - Markdown commit prompt to use
+    #     BACH_JCO_EXTRA         - Extra instructions appended to the prompt
+    local usage='
+Usage: jco [options] [extra instructions...]
+
+  Commit the current repository with opencode.
+
+  -m, --model <model>   Model to use (provider/model)
+  -h, --help            Show this help message
+
+Configuration is read from ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh:
+  BACH_JCO_MODEL         Default model (provider/model)
+  BACH_JCO_PROMPT_FILE   Markdown commit prompt file
+  BACH_JCO_EXTRA         Extra instructions appended to the prompt
+'
+
+    local model="${BACH_JCO_MODEL:-}"
+    local prompt_file="${BACH_JCO_PROMPT_FILE:-}"
+    local extra="${BACH_JCO_EXTRA:-$'merge all into 1 commit\ndont need to ask, just commit'}"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        -h | --help)
+            printf '%s\n' "$usage"
+            return 0
+            ;;
+        -m | --model)
+            if [ -z "${2:-}" ]; then
+                log_error "❌ $1 requires a model (provider/model)"
+                return 1
+            fi
+            model="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            log_error "❌ Unknown option: $1"
+            log_info "💡 Use 'jco --help' for usage information."
+            return 1
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
+    if [ $# -gt 0 ]; then
+        extra="$extra
+$*"
+    fi
+
+    # Expand a leading ~/ because it is not expanded inside variable values.
+    case "$prompt_file" in
+    "~/"*) prompt_file="$HOME/${prompt_file#\~/}" ;;
+    esac
+
+    if ! validate_git_repo; then
+        return 1
+    fi
+
+    if ! command -v opencode >/dev/null 2>&1; then
+        log_error "❌ opencode is not installed or not on PATH"
+        return 1
+    fi
+
+    local prompt
+    if [ -n "$prompt_file" ]; then
+        if [ ! -f "$prompt_file" ]; then
+            log_error "❌ Commit prompt file not found: $prompt_file"
+            return 1
+        fi
+        prompt=$(cat "$prompt_file")
+    else
+        prompt='Review the current repository changes with git status and git diff, then create the commit(s).
+- Group related changes into focused commits.
+- Use imperative, sentence-cased commit messages that explain why.
+- Never add AI attribution, generated-with lines, or Co-Authored-By trailers.'
+    fi
+
+    if [ -n "$extra" ]; then
+        prompt="$prompt
+---
+$extra"
+    fi
+
+    log_info "🤖 Running opencode commit${model:+ with model $model}..."
+
+    if [ -n "$model" ]; then
+        opencode run --auto -m "$model" -- "$prompt"
+    else
+        opencode run --auto -- "$prompt"
+    fi
+}
+
+function jco_commit_submodules() {
+    # Recursively commit submodules deepest-first using jco.
+    # Continues after a submodule fails so other submodules can still be
+    # committed. Returns non-zero when any submodule in the tree failed.
+    # Args: $1 - repository directory
+    #       remaining args - passed through to jco
+    local repo_dir="$1"
+    shift
+
+    local gitmodules="$repo_dir/.gitmodules"
+    if [ ! -f "$gitmodules" ]; then
+        return 0
+    fi
+
+    local subtree_failed=0
+    local submodule_path full_path
+    while IFS= read -r submodule_path; do
+        [ -z "$submodule_path" ] && continue
+
+        full_path="$repo_dir/$submodule_path"
+
+        if [ ! -d "$full_path" ]; then
+            log_warning "⚠️  Skipping missing submodule: $submodule_path"
+            continue
+        fi
+
+        # A populated submodule has a .git file (or directory); an empty
+        # directory would otherwise be treated as part of its parent repo.
+        if [ ! -e "$full_path/.git" ]; then
+            log_warning "⚠️  Skipping uninitialized submodule: $submodule_path"
+            continue
+        fi
+
+        if ! git -C "$full_path" rev-parse --git-dir >/dev/null 2>&1; then
+            log_warning "⚠️  Skipping invalid submodule: $submodule_path"
+            continue
+        fi
+
+        # Commit nested submodules before their parent. If a nested submodule
+        # fails, skip the parent so it cannot record an incomplete state.
+        if ! jco_commit_submodules "$full_path" "$@"; then
+            log_warning "⚠️  Skipping submodule with failed nested submodule: $submodule_path"
+            subtree_failed=1
+            continue
+        fi
+
+        if [ -z "$(git -C "$full_path" status --porcelain 2>/dev/null)" ]; then
+            log_info "ℹ️  No changes in submodule: $submodule_path"
+            continue
+        fi
+
+        log_info "📁 Committing submodule: $submodule_path"
+        if ! (
+            cd "$full_path" || exit 1
+            jco "$@"
+        ); then
+            log_error "❌ Failed to commit submodule: $full_path"
+            JCO_COMMIT_FAILED+=("$full_path")
+            subtree_failed=1
+        fi
+    done < <(git config --file "$gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null | cut -d' ' -f2-)
+
+    return $subtree_failed
+}
+
+function jco_wants_help() {
+    # Return success when any argument is -h or --help
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+        -h | --help) return 0 ;;
+        esac
+    done
+    return 1
+}
+
+function jcoa() {
+    # Commit all submodules first, then the current repository, using opencode.
+    #
+    # USAGE:
+    #   jcoa                        - Commit submodules first, then the repo
+    #   jcoa "<extra instructions>" - Append instructions to the commit prompt
+    #   jcoa -m <provider/model>    - Override the model for this run
+    #   jcoa -h|--help              - Show this help message
+    #
+    # Accepts the same configuration as jco:
+    #   BACH_JCO_MODEL, BACH_JCO_PROMPT_FILE, BACH_JCO_EXTRA
+    local usage='
+Usage: jcoa [options] [extra instructions...]
+
+  Commit all submodules first (deepest first), then the current repository,
+  using opencode. Already committed submodules are skipped on rerun.
+
+  -m, --model <model>   Model to use (provider/model)
+  -h, --help            Show this help message
+
+Accepts the same configuration as jco:
+  BACH_JCO_MODEL         Default model (provider/model)
+  BACH_JCO_PROMPT_FILE   Markdown commit prompt file
+  BACH_JCO_EXTRA         Extra instructions appended to the prompt
+'
+
+    if jco_wants_help "$@"; then
+        printf '%s\n' "$usage"
+        return 0
+    fi
+
+    if ! validate_git_repo; then
+        return 1
+    fi
+
+    local git_root="$GIT_ROOT"
+
+    # Run in a subshell so the caller's working directory never changes.
+    (
+        cd "$git_root" || {
+            log_error "❌ Failed to change to repository root: $git_root"
+            exit 1
+        }
+
+        log_info "🔍 Committing submodules first..."
+
+        JCO_COMMIT_FAILED=()
+        if ! jco_commit_submodules "$git_root" "$@"; then
+            log_error "❌ Failed to commit some submodules:"
+            for failed_repo in "${JCO_COMMIT_FAILED[@]}"; do
+                log_error "   - $failed_repo"
+            done
+            log_info "💡 Fix the issue and rerun; already committed repositories will be skipped."
+            exit 1
+        fi
+
+        if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+            if ! jco "$@"; then
+                log_error "❌ Failed to commit repository root"
+                exit 1
+            fi
+        else
+            log_info "ℹ️  No changes to commit in repository root"
+        fi
+    )
+}
+
+function jco_push_submodules() {
+    # Recursively push submodules deepest-first.
+    # Continues after a submodule fails so other submodules can still be
+    # pushed. Returns non-zero when any submodule in the tree failed.
+    # Args: $1 - repository directory
+    local repo_dir="$1"
+
+    local gitmodules="$repo_dir/.gitmodules"
+    if [ ! -f "$gitmodules" ]; then
+        return 0
+    fi
+
+    local subtree_failed=0
+    local submodule_path full_path unpushed_count
+    while IFS= read -r submodule_path; do
+        [ -z "$submodule_path" ] && continue
+
+        full_path="$repo_dir/$submodule_path"
+
+        if [ ! -d "$full_path" ] || [ ! -e "$full_path/.git" ]; then
+            continue
+        fi
+
+        # Push nested submodules before their parent. If a nested submodule
+        # fails, skip the parent so it cannot reference an unpushed child.
+        if ! jco_push_submodules "$full_path"; then
+            log_warning "⚠️  Skipping submodule with failed nested submodule: $submodule_path"
+            subtree_failed=1
+            continue
+        fi
+
+        if ! git -C "$full_path" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+            # No upstream: fail only when HEAD has commits not on any remote.
+            unpushed_count=$(git -C "$full_path" rev-list --count HEAD --not --remotes 2>/dev/null) || unpushed_count=0
+            if [ "${unpushed_count:-0}" -gt 0 ]; then
+                log_error "❌ Submodule has unpushed commits but no upstream: $full_path"
+                JCO_PUSH_FAILED+=("$full_path")
+                subtree_failed=1
+            else
+                log_info "ℹ️  No unpushed commits in submodule: $submodule_path"
+            fi
+            continue
+        fi
+
+        if [ -z "$(git -C "$full_path" log --oneline '@{u}..' 2>/dev/null)" ]; then
+            log_info "ℹ️  No unpushed commits in submodule: $submodule_path"
+            continue
+        fi
+
+        log_info "📤 Pushing submodule: $submodule_path"
+        if ! git -C "$full_path" push; then
+            log_error "❌ Failed to push submodule: $full_path"
+            JCO_PUSH_FAILED+=("$full_path")
+            subtree_failed=1
+        fi
+    done < <(git config --file "$gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null | cut -d' ' -f2-)
+
+    return $subtree_failed
+}
+
+function jcop() {
+    # Commit the current repository with jco, then push it.
+    #
+    # USAGE:
+    #   jcop                        - Commit with the configured defaults, then push
+    #   jcop "<extra instructions>" - Append instructions to the commit prompt
+    #   jcop -m <provider/model>    - Override the model for this run
+    #   jcop -h|--help              - Show this help message
+    #
+    # Accepts the same configuration as jco:
+    #   BACH_JCO_MODEL, BACH_JCO_PROMPT_FILE, BACH_JCO_EXTRA
+    local usage='
+Usage: jcop [options] [extra instructions...]
+
+  Commit the current repository with opencode, then push it.
+
+  -m, --model <model>   Model to use (provider/model)
+  -h, --help            Show this help message
+
+Accepts the same configuration as jco:
+  BACH_JCO_MODEL         Default model (provider/model)
+  BACH_JCO_PROMPT_FILE   Markdown commit prompt file
+  BACH_JCO_EXTRA         Extra instructions appended to the prompt
+'
+
+    if jco_wants_help "$@"; then
+        printf '%s\n' "$usage"
+        return 0
+    fi
+
+    jco "$@" || return 1
+
+    log_info "📤 Pushing repository..."
+    git push
+}
+
+function jcoap() {
+    # Commit submodules and the current repository with jcoa, then push all.
+    #
+    # USAGE:
+    #   jcoap                        - Commit submodules first, then push all
+    #   jcoap "<extra instructions>" - Append instructions to the commit prompt
+    #   jcoap -m <provider/model>    - Override the model for this run
+    #   jcoap -h|--help              - Show this help message
+    #
+    # Already committed/pushed repositories are skipped on rerun.
+    # Accepts the same configuration as jco:
+    #   BACH_JCO_MODEL, BACH_JCO_PROMPT_FILE, BACH_JCO_EXTRA
+    local usage='
+Usage: jcoap [options] [extra instructions...]
+
+  Commit all submodules first (deepest first), then the current repository,
+  using opencode, then push everything. Already committed/pushed repositories
+  are skipped on rerun.
+
+  -m, --model <model>   Model to use (provider/model)
+  -h, --help            Show this help message
+
+Repositories with unpushed commits but no upstream are reported as failures.
+Accepts the same configuration as jco:
+  BACH_JCO_MODEL         Default model (provider/model)
+  BACH_JCO_PROMPT_FILE   Markdown commit prompt file
+  BACH_JCO_EXTRA         Extra instructions appended to the prompt
+'
+
+    if jco_wants_help "$@"; then
+        printf '%s\n' "$usage"
+        return 0
+    fi
+
+    jcoa "$@" || return 1
+
+    if ! validate_git_repo; then
+        return 1
+    fi
+
+    local git_root="$GIT_ROOT"
+
+    # Run in a subshell so the caller's working directory never changes.
+    (
+        cd "$git_root" || {
+            log_error "❌ Failed to change to repository root: $git_root"
+            exit 1
+        }
+
+        log_info "📤 Pushing submodules..."
+
+        JCO_PUSH_FAILED=()
+        if ! jco_push_submodules "$git_root"; then
+            log_error "❌ Failed to push some submodules:"
+            for failed_repo in "${JCO_PUSH_FAILED[@]}"; do
+                log_error "   - $failed_repo"
+            done
+            log_warning "⚠️  Skipping repository push until submodules are pushed."
+            log_info "💡 Fix the issue and rerun; already pushed repositories will be skipped."
+            exit 1
+        fi
+
+        if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+            unpushed_count=$(git rev-list --count HEAD --not --remotes 2>/dev/null) || unpushed_count=0
+            if [ "${unpushed_count:-0}" -gt 0 ]; then
+                log_error "❌ Repository has unpushed commits but no upstream"
+                exit 1
+            fi
+            log_info "ℹ️  No unpushed commits in repository root"
+            exit 0
+        fi
+
+        if [ -z "$(git log --oneline '@{u}..' 2>/dev/null)" ]; then
+            log_info "ℹ️  No unpushed commits in repository root"
+            exit 0
+        fi
+
+        log_info "📤 Pushing repository..."
+        if ! git push; then
+            log_error "❌ Failed to push repository"
+            exit 1
+        fi
+    )
+}
+
+# -----------------------------------
 #      just-committed discovery
 # -----------------------------------
 
@@ -1166,6 +1603,8 @@ function git_ls_ignored_directories() {
 # Export public API functions
 export -f gl gl_quick_jump gl_search gl_interactive
 export -f just_commit just_push just_commit_all just_push_all
+export -f jco jcoa jcop jcoap
+export -f jco_wants_help jco_commit_submodules jco_push_submodules
 export -f find_just_committed_all remove_submodule
 export -f git_ls_large_objects git_ls_ignored_files git_ls_ignored_directories
 export -f git_remember_passwords git_remember_credentials git_trust_current_dir just_amend

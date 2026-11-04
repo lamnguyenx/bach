@@ -84,6 +84,36 @@ Available modules:
 
 To reload modules in the current shell: `reload_bash` or `source ~/.bashrc`
 
+## Configuration
+
+Bach loads an optional user configuration file from
+`${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh`. The file is not tracked by
+bach and can override any module settings:
+
+```bash
+# ~/.config/bach/config.sh
+BACH_JCO_MODEL="provider/model"
+BACH_JCO_PROMPT_FILE="$HOME/.claude/commands/commit.md"
+```
+
+`jco` commits the current repository with `opencode run`. `jcoa` commits all
+submodules first (deepest first), then the current repository. `jcop` and
+`jcoap` do the same and then push:
+
+```bash
+jco                        # commit with the configured defaults
+jcoa                       # commit submodules first, then the repo
+jcop                       # commit, then push
+jcoap                      # commit submodules + repo, then push all
+jco "also update the docs" # append extra instructions
+jco -m "provider/model"    # override the model for this run
+```
+
+`jcoa` and `jcoap` are best-effort and resumable: one failing submodule does
+not stop the others, failures are listed at the end, and rerunning skips repos
+that are already clean or pushed. A parent/root repo is not committed or pushed
+while a child submodule is still failing.
+
 ## Linting
 
 To check shellscripts, install `shellcheck` and run `shellcheck --severity=error <input_file>`.
