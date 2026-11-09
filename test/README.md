@@ -5,6 +5,7 @@ This directory contains test scripts for the bach project.
 ## Available Tests
 
 - `test_cross_platform.sh`: Tests cross-platform compatibility of shell scripts on macOS and Linux
+- `test_git_copy_clean.sh`: Tests `git_copy_clean` (ignored files excluded, submodules, `--with-git`, destination guards)
 
 ## Running Tests
 

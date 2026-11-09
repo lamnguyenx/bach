@@ -1600,6 +1600,207 @@ function git_ls_ignored_directories() {
     git ls-files --others --ignored --exclude-standard --directory
 }
 
+# -----------------------------------
+#            clean copy
+# -----------------------------------
+
+declare -a GCC_REPOS
+declare -a GCC_RELS
+
+function _git_copy_clean_usage() {
+    cat <<'EOF'
+git_copy_clean - copy a checkout without its git-ignored files
+
+USAGE:
+  git_copy_clean [-g|--with-git] [--force] <src> <dst>
+
+OPTIONS:
+  -g, --with-git   also copy .git and the submodules' .git files/dirs, so
+                   <dst> is a working checkout (history + submodule stores)
+  --force          allow copying into a non-empty <dst>
+  -h, --help       show this help
+
+EXAMPLES:
+  git_copy_clean ~/git/proj ~/git/proj-clean
+  git_copy_clean -g ~/git/proj ~/git/proj-02   # ready-to-run second checkout
+
+Copies tracked + untracked-not-ignored files for the superproject and every
+initialized submodule, so each repo's own .gitignore applies. Symlinks and
+permissions are preserved; empty directories are not created.
+Requires rsync >= 3.0 (macOS: brew install rsync).
+EOF
+}
+
+function _git_copy_clean_collect() {
+    # Collect a repo and its submodules recursively into GCC_REPOS/GCC_RELS
+    # Args: $1 - repo path
+    #       $2 - path relative to the copy root ("" for the superproject)
+    local repo="$1"
+    local rel="$2"
+    local sub
+
+    GCC_REPOS+=("$repo")
+    GCC_RELS+=("$rel")
+
+    # Gitlinks stay in the index even when a submodule is not initialized
+    while IFS= read -r sub; do
+        [ -n "$sub" ] || continue
+        if [ ! -d "$repo/$sub" ] || ! git -C "$repo/$sub" rev-parse --git-dir >/dev/null 2>&1; then
+            log_warning "Skipping uninitialized submodule: ${rel:+$rel/}$sub"
+            continue
+        fi
+        _git_copy_clean_collect "$repo/$sub" "${rel:+$rel/}$sub"
+    done < <(git -C "$repo" ls-files --stage | awk '$1 == "160000" { print $4 }')
+}
+
+function git_copy_clean() {
+    # Copy a checkout without git-ignored files (superproject + submodules)
+    #
+    # USAGE:
+    #   git_copy_clean [-g|--with-git] [--force] <src> <dst>
+    #
+    # EXAMPLES:
+    #   git_copy_clean ~/git/proj ~/git/proj-clean
+    #   git_copy_clean -g ~/git/proj ~/git/proj-02
+    local with_git=0
+    local force=0
+    local src
+    local dst
+    local rsync_help
+    local i
+    local repo
+    local rel
+    local target
+    local -a rsync_opts
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h | --help)
+                _git_copy_clean_usage
+                return 0
+                ;;
+            -g | --with-git)
+                with_git=1
+                shift
+                ;;
+            --force)
+                force=1
+                shift
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -?*)
+                log_error "Unknown option: $1"
+                return 1
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [ $# -ne 2 ]; then
+        log_error "Expected <src> and <dst>"
+        _git_copy_clean_usage >&2
+        return 1
+    fi
+
+    src="$1"
+    dst="$2"
+
+    if [ ! -d "$src" ]; then
+        log_error "Source is not a directory: $src"
+        return 1
+    fi
+    src="$(cd "$src" && pwd -P)"
+
+    if ! git -C "$src" rev-parse --git-dir >/dev/null 2>&1; then
+        log_error "Not a git repository: $src"
+        return 1
+    fi
+
+    if ! command -v rsync >/dev/null 2>&1; then
+        log_error "rsync not found"
+        return 1
+    fi
+    rsync_help="$(rsync --help 2>&1 || true)"
+    if ! printf '%s\n' "$rsync_help" | grep -q -- '--from0'; then
+        log_error "rsync >= 3.0 is required (macOS: brew install rsync)"
+        return 1
+    fi
+    rsync_opts=(-a --from0 --files-from=-)
+    if printf '%s\n' "$rsync_help" | grep -q -- '--ignore-missing-args'; then
+        rsync_opts+=(--ignore-missing-args)
+    fi
+
+    if [ -e "$dst" ] && [ -n "$(ls -A "$dst" 2>/dev/null)" ] && [ "$force" -eq 0 ]; then
+        log_error "Destination is not empty: $dst (use --force)"
+        return 1
+    fi
+    mkdir -p "$dst" || return 1
+    dst="$(cd "$dst" && pwd -P)"
+
+    case "$dst/" in
+        "$src"/*)
+            log_error "Destination is inside the source: $dst"
+            return 1
+            ;;
+    esac
+
+    GCC_REPOS=()
+    GCC_RELS=()
+    _git_copy_clean_collect "$src" ""
+
+    for i in "${!GCC_REPOS[@]}"; do
+        repo="${GCC_REPOS[$i]}"
+        rel="${GCC_RELS[$i]}"
+        target="$dst${rel:+/$rel}"
+        mkdir -p "$target" || return 1
+
+        log_info "Copying files: ${rel:-<root>}"
+        (
+            cd "$repo" || exit 1
+            git ls-files -z --cached --others --exclude-standard |
+                rsync "${rsync_opts[@]}" ./ "$target/"
+        ) || {
+            log_error "Failed to copy: $repo"
+            return 1
+        }
+    done
+
+    if [ "$with_git" -eq 1 ]; then
+        log_info "Copying .git (history and submodule object stores)..."
+        if [ -f "$src/.git" ]; then
+            log_warning "Source is a linked worktree; the copy shares its git dir"
+            cp "$src/.git" "$dst/.git" || return 1
+        else
+            rsync -a "$src/.git/" "$dst/.git/" || return 1
+        fi
+
+        for i in "${!GCC_REPOS[@]}"; do
+            if [ "$i" -eq 0 ]; then
+                continue
+            fi
+            repo="${GCC_REPOS[$i]}"
+            rel="${GCC_RELS[$i]}"
+            target="$dst/$rel"
+
+            if [ -f "$repo/.git" ]; then
+                cp "$repo/.git" "$target/.git" || return 1
+            elif [ -d "$repo/.git" ]; then
+                rsync -a "$repo/.git/" "$target/.git/" || return 1
+            fi
+        done
+    fi
+
+    log_ok "Copied ${#GCC_REPOS[@]} repo(s) to $dst ($(du -sh "$dst" 2>/dev/null | cut -f1))"
+    if [ "$with_git" -eq 0 ]; then
+        log_info "No .git copied; re-run with -g for a ready-to-run checkout"
+    fi
+}
+
 # Export public API functions
 export -f gl gl_quick_jump gl_search gl_interactive
 export -f just_commit just_push just_commit_all just_push_all
@@ -1607,10 +1808,11 @@ export -f jco jcoa jcop jcoap
 export -f jco_wants_help jco_commit_submodules jco_push_submodules
 export -f find_just_committed_all remove_submodule
 export -f git_ls_large_objects git_ls_ignored_files git_ls_ignored_directories
-export -f git_remember_passwords git_remember_credentials git_trust_current_dir just_amend
+export -f git_copy_clean git_remember_passwords git_remember_credentials git_trust_current_dir just_amend
 
 # Export internal helpers (needed by public functions in subshells)
 export -f validate_params validate_git_repo change_directory process_submodules_recursive
+export -f _git_copy_clean_usage _git_copy_clean_collect
 export -f gl_collect_all_submodules gl_find_submodules_recursive gl_display_by_levels
 export -f just_commit_push
 
