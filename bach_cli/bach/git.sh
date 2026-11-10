@@ -118,6 +118,7 @@ function just_commit_push() {
 }
 
 function just_amend() {
+    load_bach_config git
     local target="${1:-.}"
 	git reset .
     git add "$target"
@@ -125,14 +126,17 @@ function just_amend() {
 }
 
 function git_remember_passwords() {
+    load_bach_config git
     git config --global credential.helper store
 }
 
 function git_remember_credentials() {
+    load_bach_config git
     git config --global credential.helper store
 }
 
 function git_trust_current_dir() {
+    load_bach_config git
     git config --global --add safe.directory
 }
 
@@ -146,6 +150,7 @@ declare -a GL_RELATIVE_PATHS
 declare -a GL_LEVELS
 
 function gl() {
+    load_bach_config git
     # Main entry point for git submodule navigation
     #
     # USAGE:
@@ -215,6 +220,7 @@ function gl() {
 }
 
 function gl_quick_jump() {
+    load_bach_config git
     # Navigate directly to a submodule by its index number
     #
     # USAGE:
@@ -267,6 +273,7 @@ function gl_quick_jump() {
 }
 
 function gl_search() {
+    load_bach_config git
     # Search for and navigate to the first submodule matching a keyword
     #
     # USAGE:
@@ -323,6 +330,7 @@ function gl_search() {
 }
 
 function gl_interactive() {
+    load_bach_config git
     # Display interactive list of all submodules for user selection
     #
     # USAGE:
@@ -596,16 +604,19 @@ function gl_display_by_levels() {
 }
 
 function just_commit() {
+    load_bach_config git
     local message="${@:-"just committed"}"
     just_commit_push "$message" "false"
 }
 
 function just_push() {
+    load_bach_config git
     local message="${@:-"just pushed"}"
     just_commit_push "$message" "true"
 }
 
 function just_commit_all() {
+    load_bach_config git
     message="${@:-"just committed"}"
 
     # Validate git repository
@@ -650,6 +661,7 @@ function just_commit_all() {
 }
 
 function just_push_all() {
+    load_bach_config git
     local message="${@:-"just pushed"}"
 
     # Validate git repository
@@ -713,7 +725,85 @@ function just_push_all() {
 #          opencode commit
 # -----------------------------------
 
+function jco_configured_models() {
+    # Print the configured models, one per line.
+    #
+    # BACH_JCO_MODEL may be a plain string with one model per line or a bash
+    # array. Blank lines and surrounding whitespace are ignored.
+    local entry line
+
+    # Guard instead of "${BACH_JCO_MODEL[@]:-}" for bash 3.2 + set -u.
+    if [ -z "${BACH_JCO_MODEL+set}" ]; then
+        return 0
+    fi
+
+    for entry in "${BACH_JCO_MODEL[@]}"; do
+        while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            if [ -n "$line" ]; then
+                printf '%s\n' "$line"
+            fi
+        done <<<"$entry"
+    done
+}
+
+function jco_has_model_arg() {
+    # Return success when -m/--model appears before the first non-option
+    # argument (the same place jco stops parsing options).
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        -m | --model) return 0 ;;
+        --) return 1 ;;
+        -*) shift ;;
+        *) return 1 ;;
+        esac
+    done
+    return 1
+}
+
+function jco_select_model() {
+    # Set JCO_MODEL_CHOICE from BACH_JCO_MODEL:
+    #   no models  -> empty (let opencode pick its default)
+    #   one model  -> that model
+    #   many models-> ask, or use the first when stdin is not a terminal
+    local -a models=()
+    local line
+    while IFS= read -r line; do
+        models+=("$line")
+    done < <(jco_configured_models)
+
+    JCO_MODEL_CHOICE=""
+
+    if [ "${#models[@]}" -eq 0 ]; then
+        return 0
+    fi
+
+    if [ "${#models[@]}" -eq 1 ]; then
+        JCO_MODEL_CHOICE="${models[0]}"
+        return 0
+    fi
+
+    if [ -t 0 ]; then
+        local choice PS3="Select model> "
+        select choice in "${models[@]}"; do
+            if [ -n "$choice" ]; then
+                JCO_MODEL_CHOICE="$choice"
+                return 0
+            fi
+            log_warning "⚠️  Invalid selection"
+        done
+        log_error "❌ No model selected"
+        return 1
+    fi
+
+    JCO_MODEL_CHOICE="${models[0]}"
+    log_warning "⚠️  Multiple models configured; using '${models[0]}' (non-interactive). Use -m to pick another."
+    return 0
+}
+
 function jco() {
+    load_bach_config git
     # Commit the current repository using opencode.
     #
     # USAGE:
@@ -723,8 +813,9 @@ function jco() {
     #   jco -h|--help              - Show this help message
     #
     # CONFIGURATION:
-    #   ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh
-    #     BACH_JCO_MODEL         - Model in provider/model form
+    #   ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh       (shared)
+    #   ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config-git.sh   (wins)
+    #     BACH_JCO_MODEL         - Model(s) in provider/model form, one per line
     #     BACH_JCO_PROMPT_FILE   - Markdown commit prompt to use
     #     BACH_JCO_EXTRA         - Extra instructions appended to the prompt
     local usage='
@@ -735,13 +826,15 @@ Usage: jco [options] [extra instructions...]
   -m, --model <model>   Model to use (provider/model)
   -h, --help            Show this help message
 
-Configuration is read from ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh:
-  BACH_JCO_MODEL         Default model (provider/model)
+Configuration is read from ${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh
+(shared) and config-git.sh (module-specific, wins):
+  BACH_JCO_MODEL         Default model; one per line. When several are set,
+                         jco asks which one to use (first when non-interactive)
   BACH_JCO_PROMPT_FILE   Markdown commit prompt file
   BACH_JCO_EXTRA         Extra instructions appended to the prompt
 '
 
-    local model="${BACH_JCO_MODEL:-}"
+    local model=""
     local prompt_file="${BACH_JCO_PROMPT_FILE:-}"
     local extra="${BACH_JCO_EXTRA:-$'merge all into 1 commit\ndont need to ask, just commit'}"
 
@@ -811,6 +904,14 @@ $*"
         prompt="$prompt
 ---
 $extra"
+    fi
+
+    # No -m: take the configured model(s), asking when more than one is set.
+    if [ -z "$model" ]; then
+        if ! jco_select_model; then
+            return 1
+        fi
+        model="$JCO_MODEL_CHOICE"
     fi
 
     log_info "🤖 Running opencode commit${model:+ with model $model}..."
@@ -899,6 +1000,7 @@ function jco_wants_help() {
 }
 
 function jcoa() {
+    load_bach_config git
     # Commit all submodules first, then the current repository, using opencode.
     #
     # USAGE:
@@ -907,7 +1009,7 @@ function jcoa() {
     #   jcoa -m <provider/model>    - Override the model for this run
     #   jcoa -h|--help              - Show this help message
     #
-    # Accepts the same configuration as jco:
+    # Accepts the same configuration as jco (config.sh + config-git.sh):
     #   BACH_JCO_MODEL, BACH_JCO_PROMPT_FILE, BACH_JCO_EXTRA
     local usage='
 Usage: jcoa [options] [extra instructions...]
@@ -918,7 +1020,7 @@ Usage: jcoa [options] [extra instructions...]
   -m, --model <model>   Model to use (provider/model)
   -h, --help            Show this help message
 
-Accepts the same configuration as jco:
+Accepts the same configuration as jco (config.sh + config-git.sh):
   BACH_JCO_MODEL         Default model (provider/model)
   BACH_JCO_PROMPT_FILE   Markdown commit prompt file
   BACH_JCO_EXTRA         Extra instructions appended to the prompt
@@ -935,6 +1037,17 @@ Accepts the same configuration as jco:
 
     local git_root="$GIT_ROOT"
 
+    # Pick the model once so commits in submodules don't re-prompt.
+    local -a jco_args=("$@")
+    if ! jco_has_model_arg "$@"; then
+        if ! jco_select_model; then
+            return 1
+        fi
+        if [ -n "$JCO_MODEL_CHOICE" ]; then
+            jco_args=(-m "$JCO_MODEL_CHOICE" "${jco_args[@]}")
+        fi
+    fi
+
     # Run in a subshell so the caller's working directory never changes.
     (
         cd "$git_root" || {
@@ -945,7 +1058,7 @@ Accepts the same configuration as jco:
         log_info "🔍 Committing submodules first..."
 
         JCO_COMMIT_FAILED=()
-        if ! jco_commit_submodules "$git_root" "$@"; then
+        if ! jco_commit_submodules "$git_root" "${jco_args[@]}"; then
             log_error "❌ Failed to commit some submodules:"
             for failed_repo in "${JCO_COMMIT_FAILED[@]}"; do
                 log_error "   - $failed_repo"
@@ -955,7 +1068,7 @@ Accepts the same configuration as jco:
         fi
 
         if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-            if ! jco "$@"; then
+            if ! jco "${jco_args[@]}"; then
                 log_error "❌ Failed to commit repository root"
                 exit 1
             fi
@@ -1026,6 +1139,7 @@ function jco_push_submodules() {
 }
 
 function jcop() {
+    load_bach_config git
     # Commit the current repository with jco, then push it.
     #
     # USAGE:
@@ -1034,7 +1148,7 @@ function jcop() {
     #   jcop -m <provider/model>    - Override the model for this run
     #   jcop -h|--help              - Show this help message
     #
-    # Accepts the same configuration as jco:
+    # Accepts the same configuration as jco (config.sh + config-git.sh):
     #   BACH_JCO_MODEL, BACH_JCO_PROMPT_FILE, BACH_JCO_EXTRA
     local usage='
 Usage: jcop [options] [extra instructions...]
@@ -1044,7 +1158,7 @@ Usage: jcop [options] [extra instructions...]
   -m, --model <model>   Model to use (provider/model)
   -h, --help            Show this help message
 
-Accepts the same configuration as jco:
+Accepts the same configuration as jco (config.sh + config-git.sh):
   BACH_JCO_MODEL         Default model (provider/model)
   BACH_JCO_PROMPT_FILE   Markdown commit prompt file
   BACH_JCO_EXTRA         Extra instructions appended to the prompt
@@ -1062,6 +1176,7 @@ Accepts the same configuration as jco:
 }
 
 function jcoap() {
+    load_bach_config git
     # Commit submodules and the current repository with jcoa, then push all.
     #
     # USAGE:
@@ -1071,7 +1186,7 @@ function jcoap() {
     #   jcoap -h|--help              - Show this help message
     #
     # Already committed/pushed repositories are skipped on rerun.
-    # Accepts the same configuration as jco:
+    # Accepts the same configuration as jco (config.sh + config-git.sh):
     #   BACH_JCO_MODEL, BACH_JCO_PROMPT_FILE, BACH_JCO_EXTRA
     local usage='
 Usage: jcoap [options] [extra instructions...]
@@ -1084,7 +1199,7 @@ Usage: jcoap [options] [extra instructions...]
   -h, --help            Show this help message
 
 Repositories with unpushed commits but no upstream are reported as failures.
-Accepts the same configuration as jco:
+Accepts the same configuration as jco (config.sh + config-git.sh):
   BACH_JCO_MODEL         Default model (provider/model)
   BACH_JCO_PROMPT_FILE   Markdown commit prompt file
   BACH_JCO_EXTRA         Extra instructions appended to the prompt
@@ -1455,6 +1570,7 @@ function fjc_render_tree() {
 }
 
 function find_just_committed_all() {
+    load_bach_config git
     # Find repositories whose current HEAD commit starts with '/// '
     #
     # USAGE:
@@ -1545,6 +1661,7 @@ function find_just_committed_all() {
 }
 
 function remove_submodule() {
+    load_bach_config git
     local submodule_path="$1"
 
     if [ -z "$submodule_path" ]; then
@@ -1583,18 +1700,21 @@ function remove_submodule() {
 }
 
 function git_ls_large_objects() {
+    load_bach_config git
     git rev-list --objects --all |
         git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' |
         sort -k3 -n -r
 }
 
 function git_ls_ignored_files() {
+    load_bach_config git
     # List ignored directories in the git repository
     # Shows directories that are ignored by .gitignore and not tracked by git
     git ls-files --others --ignored --exclude-standard
 }
 
 function git_ls_ignored_directories() {
+    load_bach_config git
     # List ignored directories in the git repository
     # Shows directories that are ignored by .gitignore and not tracked by git
     git ls-files --others --ignored --exclude-standard --directory
@@ -1654,6 +1774,7 @@ function _git_copy_clean_collect() {
 }
 
 function git_copy_clean() {
+    load_bach_config git
     # Copy a checkout without git-ignored files (superproject + submodules)
     #
     # USAGE:
@@ -1806,6 +1927,7 @@ export -f gl gl_quick_jump gl_search gl_interactive
 export -f just_commit just_push just_commit_all just_push_all
 export -f jco jcoa jcop jcoap
 export -f jco_wants_help jco_commit_submodules jco_push_submodules
+export -f jco_configured_models jco_has_model_arg jco_select_model
 export -f find_just_committed_all remove_submodule
 export -f git_ls_large_objects git_ls_ignored_files git_ls_ignored_directories
 export -f git_copy_clean git_remember_passwords git_remember_credentials git_trust_current_dir just_amend

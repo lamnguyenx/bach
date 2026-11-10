@@ -82,19 +82,49 @@ Available modules:
 - `terminal.sh`: Terminal setup
 - `lastly.sh`: Final configurations
 
-To reload modules in the current shell: `reload_bash` or `source ~/.bashrc`
+To reload modules in the current shell: `reload_bach` or `source ~/.bashrc`
 
 ## Configuration
 
-Bach loads an optional user configuration file from
-`${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh`. The file is not tracked by
-bach and can override any module settings:
+Bach loads optional user configuration from
+`${XDG_CONFIG_HOME:-$HOME/.config}/bach/`. Nothing there is tracked by bach.
+
+- `config.sh` — shared settings, loaded for every command.
+- `config-<module>.sh` — settings for one module, e.g. `config-git.sh` for
+  `git.sh`, `config-docker.sh` for `docker.sh`. Loaded after `config.sh`, so it
+  wins on conflicts.
 
 ```bash
 # ~/.config/bach/config.sh
-BACH_JCO_MODEL="provider/model"
+# Shared defaults for every module (nothing is required here).
+
+# ~/.config/bach/config-git.sh
+BACH_JCO_MODEL="
+VAI 2/glm-5.3
+opencode-go/deepseek-v4.1-flash
+"
 BACH_JCO_PROMPT_FILE="$HOME/.claude/commands/commit.md"
 ```
+
+`BACH_JCO_MODEL` may list several models, one per line (a bash array works
+too). When more than one is set, `jco`/`jcoa`/`jcop`/`jcoap` show a numbered
+menu; non-interactive runs use the first entry. `-m <model>` skips the menu.
+
+Assign values directly rather than using `${VAR:-default}` fallbacks: the file
+is re-sourced before each command, and a fallback would keep the value from the
+first source, so later edits would not apply. Use the command's own flag (e.g.
+`jco -m`) for one-off overrides.
+
+Module commands source their config before reading it, so edits apply to the
+next command — no shell restart or `reload_bach` needed. All config files are
+also loaded at shell startup so their values are available immediately. Config
+files must be idempotent because they are sourced repeatedly. `reload_bach`
+still exists and re-sources every config file present.
+
+How config is discovered, layered, and refreshed — including the
+`BACH_JCO_MODEL` menu and troubleshooting (stale exported functions, why
+`${VAR:-default}` must not be used) — is documented in
+[`docs/important/how-config-loading-works.md`](docs/important/how-config-loading-works.md).
 
 `jco` commits the current repository with `opencode run`. `jcoa` commits all
 submodules first (deepest first), then the current repository. `jcop` and
@@ -113,6 +143,13 @@ jco -m "provider/model"    # override the model for this run
 not stop the others, failures are listed at the end, and rerunning skips repos
 that are already clean or pushed. A parent/root repo is not committed or pushed
 while a child submodule is still failing.
+
+## Documentation
+
+- [`docs/important/how-config-loading-works.md`](docs/important/how-config-loading-works.md) — user config layout (`config.sh` + `config-<module>.sh`), when files are (re-)sourced, config rules, and `jco` model selection; read before touching config or `jco*`
+- [`docs/important/how-test-test-audio.md`](docs/important/how-test-test-audio.md) — manual end-to-end test of `mic_forward`
+- [`docs/important/how-test-test-video.md`](docs/important/how-test-test-video.md) — manual end-to-end test of video forwarding
+- `docs/plans/` — dated work logs (decisions, trials, errors, lessons)
 
 ## Linting
 

@@ -40,24 +40,67 @@ source_modules() {
     fi
 }
 
+# Directory holding the optional user configuration (not tracked by bach)
+function bach_config_dir() {
+    printf '%s' "${XDG_CONFIG_HOME:-$HOME/.config}/bach"
+}
+
 # Function to load optional user configuration (not tracked by bach)
+#
+#   load_bach_config              - shared config.sh only
+#   load_bach_config git docker   - shared config.sh, then config-git.sh and
+#                                   config-docker.sh (module files win)
+#
+# Commands call this before reading their settings, so edits to a config file
+# apply on the next command without restarting the shell or running reload_bach.
+# Config files must be idempotent: they are sourced repeatedly.
 function load_bach_config() {
-    local config_file="${XDG_CONFIG_HOME:-$HOME/.config}/bach/config.sh"
+    local config_dir config_file module
+    config_dir="$(bach_config_dir)"
+
+    # Shared settings first so module files can override them.
+    config_file="$config_dir/config.sh"
     if [ -f "$config_file" ]; then
         # shellcheck disable=SC1090
         source "$config_file"
     fi
+
+    for module in "$@"; do
+        module="${module%.sh}"
+        config_file="$config_dir/config-$module.sh"
+        if [ -f "$config_file" ]; then
+            # shellcheck disable=SC1090
+            source "$config_file"
+        fi
+    done
+}
+
+# Source every config file that exists (shared + per-module)
+function load_all_bach_configs() {
+    local config_dir config_file
+    config_dir="$(bach_config_dir)"
+
+    load_bach_config
+
+    for config_file in "$config_dir"/config-*.sh; do
+        if [ -f "$config_file" ]; then
+            # shellcheck disable=SC1090
+            source "$config_file"
+        fi
+    done
 }
 
 # Initial module loading
 source_modules
-load_bach_config
+# Load every config file at startup so the values are visible immediately;
+# module commands re-source their own files before reading them.
+load_all_bach_configs
 # BACH_SOURCED=1
 
 # Reload function to reload all modules
 function reload_bach() {
     source_modules
-    load_bach_config
+    load_all_bach_configs
     echo "✅ All bach modules reloaded"
 }
 
@@ -66,4 +109,4 @@ function reload_bashrc() {
 }
 
 # Export public API functions
-export -f source_modules load_bach_config reload_bach reload_bashrc
+export -f source_modules bach_config_dir load_bach_config load_all_bach_configs reload_bach reload_bashrc
