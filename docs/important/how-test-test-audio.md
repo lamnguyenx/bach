@@ -2,13 +2,21 @@
 # ==============================================================
 #   HOW TO TEST mic_forward (audio forwarding)
 # ==============================================================
-# Manual verification procedure for bach_cli/bach/audio.sh
+# Manual verification procedure for lib/bach/audio.sh
 #
 # Verifies the full chain end-to-end:
 #   1. the remote PulseAudio source exists
 #   2. the local writer is fully detached from the shell
 #   3. real microphone audio (not silence) reaches the remote host
 #   4. stop cleans up every artifact
+#
+# Layout update (2026-11-10): source paths now use lib/bach/.
+# Run these commands from the checkout root. They test checkout files;
+# after make install, use bach_reload to refresh installed files instead.
+# Packaging/reload tests do not validate live forwarding; this hardware
+# procedure was not run during the packaging migration.
+# See how-installation-packaging-and-reload-work.md in this directory and
+# ../plans/2026/11/10/2026-11-10-shell-packaging-and-release-migration.md.
 #
 # Replace HOST with the ssh alias you forward to (e.g. pp).
 
@@ -25,7 +33,7 @@ echo "   (the OS default input — set in Sound settings — is used via :defaul
 
 echo
 echo "== 1. Start forwarding =="
-source bach_cli/bach/audio.sh
+source lib/bach/audio.sh
 mic_forward start "$HOST"
 
 echo

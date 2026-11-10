@@ -4,6 +4,12 @@ How bach discovers, layers, and refreshes user configuration, and how the
 `jco*` model selection works. Work log for the change itself:
 `docs/plans/2026/11/10/2026-11-10-per-module-config-and-jco-model-selection.md`.
 
+Installation, the migration from `bach_cli/bach/__init__.sh`, and the
+one-time activation needed to replace an old in-memory loader are documented
+in [the installation and reload guide](how-installation-packaging-and-reload-work.md).
+The reload review and regression results are recorded in
+[the reload work log](../plans/2026/11/10/2026-11-10-reliable-bash-reload.md).
+
 ## File layout
 
 All config lives in one directory and none of it is tracked by bach:
@@ -21,15 +27,26 @@ so a module file wins on conflicts.
 
 ## When files are sourced
 
-- **Shell startup** (`__init__.sh`): all config files present are sourced, so
+- **Shell startup** (`init.sh`): all config files present are sourced, so
   values are usable immediately anywhere in the shell.
 - **Before each module command**: `jco`, `jcoa`, `jcop`, `jcoap`, `gl`,
   `just_*`, `git_copy_clean`, … all begin with `load_bach_config git`, which
   re-sources `config.sh` and `config-git.sh` before reading any setting.
   Edits therefore apply to the *next command* — no shell restart and no
   `reload_bach`.
-- **`reload_bach`**: re-sources every module and every config file (use it
-  after upgrading bach itself).
+- **`bach_reload` / `reload_bach`**: re-sources the recorded entry point,
+  every module, and every config file in the current shell. The absolute entry
+  path works after changing directories; re-reading it also refreshes loader
+  helpers and module lists. Missing files, syntax errors, and failed loads
+  return nonzero rather than printing success. A runtime failure can leave
+  partially updated definitions; fix the reported file and retry.
+- **Source edits vs. installed files**: run `make install` after editing a
+  checkout, then reload. For a package-manager upgrade that replaces the
+  installation path, use `eval "$(bach reload)"` to select the current package.
+  Plain `bach reload` only prints activation code.
+- **Removed settings**: reload applies the assignments still present; it does
+  not unset variables or remove functions whose definitions were deleted.
+  Open a new shell for a clean state.
 
 ## Rules for config files
 
@@ -58,7 +75,7 @@ so a module file wins on conflicts.
 One line per public command, then the config file:
 
 ```bash
-# in bach_cli/bach/docker.sh, first line of each exported function:
+# in lib/bach/docker.sh, first line of each exported function:
 load_bach_config docker
 
 # user creates: ~/.config/bach/config-docker.sh
@@ -105,6 +122,8 @@ Behavior:
   should be bach's, not `~/.bashrc`'s).
 - **The command still misbehaves after fixing things**: bach exports its
   functions (`export -f`), so shells started *before* the fix keep the old
-  body in their environment. Run `reload_bach` (or open a new shell).
+  body in their environment. If the loader itself is old, first run
+  `eval "$(bach init)"`; afterward use `bach_reload` or `reload_bach`. Check
+  for startup overrides if a new shell still inherits the wrong function.
 - **Which model would actually run?** Dry-run without calling a model:
   put a stub `opencode` that prints `"$*"` first on `PATH` and run `jco`.

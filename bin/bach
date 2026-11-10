@@ -1,0 +1,161 @@
+#!/bin/bash
+# ==============================================================
+#                            BACH
+# ==============================================================
+# Manage activation of the Bach shell toolkit (Bash 3.2+).
+
+set -euo pipefail
+
+# Resolve package-manager symlinks without GNU readlink -f.
+script_path=${BASH_SOURCE[0]}
+while [ -L "$script_path" ]; do
+    script_dir=$(cd -P "$(dirname "$script_path")" && pwd)
+    script_path=$(readlink "$script_path")
+    case "$script_path" in
+    /*) ;;
+    *) script_path="$script_dir/$script_path" ;;
+    esac
+done
+prefix=$(cd -P "$(dirname "$script_path")/.." && pwd)
+bach_init="$prefix/lib/bach/init.sh"
+block_start='# >>> bach initialize >>>'
+block_end='# <<< bach initialize <<<'
+
+usage() {
+    cat <<'HELP'
+Usage: bach <command>
+  init [--write] [--rc FILE]  Print activation, or explicitly update ~/.bashrc
+  deinit [--rc FILE]         Remove the managed activation block
+  reload                    Print the command to load Bach in this shell
+  update                    Show how to upgrade the installed files
+  --version                 Show the installed version
+  --help                    Show this help
+
+Compatibility aliases: install = init --write; uninstall/clean = deinit.
+File installation/removal is managed by make or your package manager.
+HELP
+}
+
+activation() {
+    printf '%s\n' "$block_start"
+    printf '# Managed by bach init --write\n'
+    printf 'if [ -r %q ]; then\n    source %q\nfi\n' "$bach_init" "$bach_init"
+    printf '%s\n' "$block_end"
+}
+
+# Preserve unrelated startup content and refuse malformed markers.
+rewrite_rc() {
+    local rc=$1 mode=$2 temp backup
+    mkdir -p "$(dirname "$rc")"
+    temp=$(mktemp "${rc}.bach.XXXXXX")
+    if [ -e "$rc" ]; then
+        if ! awk -v start="$block_start" -v end="$block_end" '
+            $0 == start { if (inside) exit 1; inside = 1; next }
+            $0 == end { if (!inside) exit 1; inside = 0; next }
+            !inside { print }
+            END { if (inside) exit 1 }
+        ' "$rc" >"$temp"; then
+            rm -f "$temp"
+            echo "Error: unmatched Bach markers in $rc; repair them before retrying." >&2
+            return 1
+        fi
+    fi
+    if [ "$mode" = init ]; then
+        cat >>"$temp" <<'BLOCK'
+# >>> bach initialize >>>
+# Managed by bach init --write
+if command -v bach >/dev/null 2>&1; then
+    eval "$(bach init)"
+fi
+# <<< bach initialize <<<
+BLOCK
+    fi
+    if [ -e "$rc" ] && cmp -s "$rc" "$temp"; then
+        rm -f "$temp"
+        return
+    fi
+    if [ -e "$rc" ]; then
+        backup=$(mktemp "${rc}.backup.bach.XXXXXX")
+        cp -p "$rc" "$backup"
+        printf 'Backed up %s to %s\n' "$rc" "$backup"
+    fi
+    # Write through symlinks and retain permissions of existing startup files.
+    if ! cat "$temp" >"$rc"; then
+        rm -f "$temp"
+        return 1
+    fi
+    rm -f "$temp"
+    printf 'Updated %s. Open a new Bash shell to apply.\n' "$rc"
+}
+
+command=${1:---help}
+[ "$#" -eq 0 ] || shift
+write_rc=false
+case "$command" in
+install)
+    command=init
+    write_rc=true
+    ;;
+uninstall | clean) command=deinit ;;
+esac
+rc_file="$HOME/.bashrc"
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --write)
+        [ "$command" = init ] || {
+            usage >&2
+            exit 1
+        }
+        write_rc=true
+        shift
+        ;;
+    --rc)
+        [ "$command" = init ] || [ "$command" = deinit ] || {
+            usage >&2
+            exit 1
+        }
+        [ "$#" -ge 2 ] && [ -n "$2" ] || {
+            echo '--rc requires a file' >&2
+            exit 1
+        }
+        rc_file=$2
+        shift 2
+        ;;
+    *)
+        usage >&2
+        exit 1
+        ;;
+    esac
+done
+case "$command" in
+init | reload)
+    [ -f "$bach_init" ] || {
+        echo "Bach modules missing: $bach_init" >&2
+        exit 1
+    }
+    if [ "$write_rc" = true ]; then
+        rewrite_rc "$rc_file" init
+    else
+        activation
+    fi
+    ;;
+deinit)
+    [ ! -e "$rc_file" ] || rewrite_rc "$rc_file" deinit
+    ;;
+update)
+    echo 'Homebrew: brew upgrade <owner>/<tap>/bach'
+    echo 'Source/release: install the newer release with make install using the same PREFIX.'
+    ;;
+--version | -V)
+    if [ -f "$prefix/lib/bach/VERSION" ]; then
+        cat "$prefix/lib/bach/VERSION"
+    else
+        cat "$prefix/VERSION"
+    fi
+    ;;
+--help | -h | help) usage ;;
+*)
+    usage >&2
+    exit 1
+    ;;
+esac

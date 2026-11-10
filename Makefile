@@ -1,21 +1,40 @@
-.PHONY: help all install clean
+.PHONY: help all install uninstall clean dist test
 .DEFAULT_GOAL := help
 
+PREFIX ?= $(HOME)/.local
+DESTDIR ?=
+BASH ?= bash
+
 help:
-	@bash ./bach_lite.sh echo_banner "Bach Installation" "=" 60
-	@echo "Run 'make install' to install bach configuration"
-	@echo "Or run 'make all' to install bach configuration"
-	@echo "Run 'make clean' to remove symlinks and create empty config directories"
-	@echo ""
-	@echo "WARNING: Do NOT move this directory. All configs use symlinks that will break if this folder is relocated."
+	@echo 'make install [PREFIX=$$HOME/.local] [DESTDIR=staging]'
+	@echo 'make uninstall [PREFIX=$$HOME/.local] [DESTDIR=staging]'
+	@echo 'make dist       Create a release archive, checksum, and Homebrew formula'
+	@echo 'make test       Run shell and installation tests'
+	@echo 'Activate after installation: bach init --write'
 
 all: install
 
-clean:
-	@echo "Removing bach configuration..."
-	@bash ./setup.sh uninstall
-	@echo "Cleaned symlinks and created empty config directories"
-
 install:
-	@bash ./bach_lite.sh echo_banner "Installing Bach" "=" 60 && \
-	bash ./setup.sh
+	install -d "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(PREFIX)/lib/bach"
+	install -m 755 bin/bach "$(DESTDIR)$(PREFIX)/bin/bach"
+	install -m 644 lib/bach/*.sh lib/bach/*.bash VERSION "$(DESTDIR)$(PREFIX)/lib/bach/"
+	@echo 'Installed Bach files. Add PREFIX/bin to PATH, then run bach init --write.'
+
+uninstall:
+	rm -f "$(DESTDIR)$(PREFIX)/bin/bach"
+	rm -rf "$(DESTDIR)$(PREFIX)/lib/bach"
+	@echo 'Removed Bach files. User configuration is preserved.'
+
+# Compatibility alias for the previous uninstall target.
+clean: uninstall
+
+dist:
+	"$(BASH)" scripts/dist.sh
+
+test:
+	"$(BASH)" test/test_reload.sh
+	"$(BASH)" test/test_packaging.sh
+	"$(BASH)" test/test_cross_platform.sh
+	"$(BASH)" test/test_config.sh
+	"$(BASH)" test/test_git_copy_clean.sh
+	"$(BASH)" test/test_common.sh

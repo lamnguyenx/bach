@@ -21,7 +21,7 @@ fi
 # Source the scripts
 echo "2. Sourcing bach scripts..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../bach_cli/bach/__init__.sh" 2>/dev/null || {
+source "$SCRIPT_DIR/../lib/bach/init.sh" 2>/dev/null || {
     echo "   ❌ Failed to source bach scripts"
     exit 1
 }
@@ -94,12 +94,12 @@ fi
 # Test accept_all (Linux only)
 echo "7. Testing accept_all..."
 if [ "$(uname)" = "Linux" ]; then
-    # Don't actually run iptables, just test the function exists and checks OS
-    if accept_all 2>&1 | grep -q "only available on Linux"; then
-        echo "   ❌ accept_all should work on Linux"
-        exit 1
-    else
+    # Check availability without executing privileged firewall commands.
+    if [ "$(type -t accept_all)" = function ]; then
         echo "   ✅ accept_all available on Linux"
+    else
+        echo "   ❌ accept_all missing"
+        exit 1
     fi
 else
     if accept_all 2>&1 | grep -q "only available on Linux"; then

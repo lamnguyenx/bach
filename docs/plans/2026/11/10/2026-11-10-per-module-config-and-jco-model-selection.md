@@ -2,7 +2,7 @@
 
 **Date**: 2026-11-10
 **Status**: ✅ **IMPLEMENTED** (uncommitted at time of writing)
-**Related**: `bach_cli/bach/__init__.sh`, `bach_cli/bach/git.sh`,
+**Related**: `lib/bach/init.sh`, `lib/bach/git.sh`,
 `test/test_config.sh`, `README.md`, `docs/important/how-config-loading-works.md`,
 `~/.bashrc`, `~/.config/bach/config.sh`, `~/.config/bach/config-git.sh`
 
@@ -164,3 +164,24 @@ that, an N-submodule repo would prompt N times.
 - Install `shellcheck` natively (and `shfmt` per coding conventions) so the
   AGENTS.md lint command works without npx.
 - Everything is uncommitted; tests + docs land with the code in one commit.
+
+
+## Same-day packaging and reload continuation
+
+The Python packaging was subsequently removed and the shell tree moved to
+`lib/bach/`; the related paths above reflect the current layout. The module's
+jco/config implementation was relocated unchanged. This log's earlier trials
+remain a record of the configuration work, not claims about the later package
+migration.
+
+See [the packaging work log](2026-11-10-shell-packaging-and-release-migration.md)
+for the complete touched-component inventory, installed/source separation,
+startup migration, and release preparation. See
+[the reload work log](2026-11-10-reliable-bash-reload.md) for the reproduced
+false-success bug and support for both `bach_reload` and `reload_bach`.
+
+The later session used pinned official ShellCheck/shfmt binaries under `/tmp`
+and added Linux/macOS CI; native PATH installation of those tools was not done.
+The updated loader was tested and installed locally. Open shells need
+`eval "$(bach init)"` once to replace the old loader. No commit, public release,
+or Homebrew tap was created; macOS execution remains to be confirmed by CI.

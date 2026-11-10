@@ -52,8 +52,8 @@ EOF
 
 unset BACH_JCO_MODEL BACH_JCO_PROMPT_FILE BACH_TEST_SHARED BACH_TEST_OVERRIDE BACH_TEST_GIT BACH_TEST_DOCKER
 
-# shellcheck source=../bach_cli/bach/__init__.sh
-source "$SCRIPT_DIR/../bach_cli/bach/__init__.sh"
+# shellcheck source=../lib/bach/init.sh
+source "$SCRIPT_DIR/../lib/bach/init.sh"
 
 # -----------------------------------
 #            assertions

@@ -1,0 +1,36 @@
+name: Prepare release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/test.yml
+
+  draft:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build assets and prepare draft release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          BACH_RELEASE_REPOSITORY: ${{ github.repository }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          make dist
+          gh release create "$RELEASE_TAG" \
+            dist/*.tar.gz dist/*.sha256 dist/bach.rb \
+            --verify-tag --draft --generate-notes --title "Bach $RELEASE_TAG"

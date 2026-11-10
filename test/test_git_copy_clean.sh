@@ -6,8 +6,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../bach_cli/bach/__init__.sh
-source "$SCRIPT_DIR/../bach_cli/bach/__init__.sh"
+# shellcheck source=../lib/bach/init.sh
+source "$SCRIPT_DIR/../lib/bach/init.sh"
 
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
